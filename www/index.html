@@ -7,7 +7,11 @@
     <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-    
+    <!-- Badge hiển thị Tên tài khoản đang đăng nhập -->
+    <div style="position: absolute; top: 1.5rem; left: 1.5rem; background: rgba(255, 255, 255, 0.9); padding: 0.5rem 1rem; border-radius: 99px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); font-weight: 600; font-size: 0.9rem; color: var(--text-main); border: 1px solid var(--card-border); backdrop-filter: blur(5px); z-index: 99;">
+      👤 Web User: <span id="currentOwnerName" style="color: var(--primary-color)">Khách</span>
+    </div>
+
 <div class="container">
     <h2>BKSysNet Domain</h2>
     <p style="color: var(--text-muted); margin-bottom: 2rem;">
@@ -22,5 +26,10 @@
     </div>
 </div>
 
+<script>
+  const _match = document.cookie.match(/username=([^;]+)/);
+  const ownerNameElem = document.getElementById('currentOwnerName');
+  if (ownerNameElem) ownerNameElem.innerText = _match ? _match[1] : "Unknown";
+</script>
 </body>
 </html>

@@ -55,6 +55,23 @@ app = WeApRous()
 peer_list = {}
 
 
+def require_auth(req):
+    """
+    Xác thực cookie trên Tracker. Nếu chưa đăng nhập, chuyển hướng về trang /login.
+    """
+    auth = req.cookies.get("auth", "") if req.cookies else ""
+    if auth == "true":
+        return None
+    print("[Auth] Chưa đăng nhập Tracker, chuyển hướng về /login")
+    return (
+        "HTTP/1.1 302 Found\r\n"
+        "Location: /login\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("utf-8")
+
+
 # --- Giai đoạn 1: Client-Server (Tracker) ---
 
 
@@ -121,7 +138,12 @@ def submit_form(req):
     - Trả về nguyên văn file `submit.html`.
     - Đây là trang hiển thị 2 ô trống yêu cầu người dùng điền IP và Port của máy mình
       để đăng ký tham gia vào mạng lưới chat P2P.
+    - Yêu cầu đăng nhập.
     """
+    unauth = require_auth(req)
+    if unauth:
+        return unauth
+        
     try:
         req.path = "/submit.html"
         return Response().build_response(req)
@@ -143,6 +165,10 @@ def submit_info(req):
     """
     print(f"[ChatServer] Nhận yêu cầu /submit-info...")
 
+    unauth = require_auth(req)
+    if unauth:
+        return unauth
+        
     try:
         body = req.body
         if body.strip().startswith("{"):

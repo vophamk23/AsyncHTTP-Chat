@@ -180,6 +180,38 @@ connected_peer = BiMap()
 chat_messages = {}
 
 
+# Hàm tiện ích kiểm tra xác thực người dùng qua Cookie
+def require_auth(req):
+    """
+    Kiểm tra cookie 'auth' trong request.
+    - Nếu có cookie auth=true → trả về None (cho phép truy cập).
+    - Nếu không có hoặc sai → trả về HTTP 302 redirect về trang login của tracker.
+    """
+    auth = req.cookies.get("auth", "") if req.cookies else ""
+    if auth == "true":
+        return None  # Đã xác thực, cho phép tiếp tục
+    # Chưa đăng nhập → đọc tracker.json để lấy địa chỉ trang login
+    import os, json as _json
+    tracker_ip, tracker_port = "localhost", 8001
+    if os.path.exists("tracker.json"):
+        try:
+            with open("tracker.json") as _f:
+                _data = _json.load(_f)
+                tracker_ip = _data.get("trackerIP", "localhost")
+                tracker_port = _data.get("trackerPort", 8001)
+        except Exception:
+            pass
+    login_url = f"http://{tracker_ip}:{tracker_port}/login"
+    print(f"[Auth] Chưa đăng nhập, chuyển hướng tới {login_url}")
+    return (
+        "HTTP/1.1 302 Found\r\n"
+        f"Location: {login_url}\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("utf-8")
+
+
 # Endpoint phục vụ URL hiển thị danh sách các Peer đang trực tuyến
 @app.route("/active-peers", methods=["GET"])
 def active_peers_page(req):
@@ -187,7 +219,11 @@ def active_peers_page(req):
     [Giao diện Web] GET /active-peers
     - Trả về màn hình danh sách các Peer bạn có thể chat.
     - Cổng giao tiếp UI chính của thư mục www/active-peers.html.
+    - Yêu cầu đăng nhập (cookie auth=true).
     """
+    unauthorized = require_auth(req)
+    if unauthorized:
+        return unauthorized
     req.path = "active-peers.html"
     resp = Response(req)
     return resp.build_response(req)
@@ -201,7 +237,7 @@ def serve_active_peers_js(req):
     - Phục vụ logic Javascript riêng lẻ (DOM) cho trang active-peers.
     """
     try:
-        req.path = "/js/active-peers.js"
+        req.path = "active-peers.js"
         resp = Response()
         resp.headers = {"Content-Type": "application/javascript"}
         return resp.build_response(req)
@@ -303,7 +339,11 @@ def view_channels(req):
     [Giao diện Web] GET /view-my-channels
     - Mở giao diện "Kênh của tôi" để xem tất cả list bạn bè (peer) đã lưu.
     - Cho phép ấn vào nút "Broadcast" và "Chat" rất trực quan.
+    - Yêu cầu đăng nhập (cookie auth=true).
     """
+    unauthorized = require_auth(req)
+    if unauthorized:
+        return unauthorized
     try:
         req.path = "/view-my-channels.html"
         resp = Response()
@@ -422,7 +462,11 @@ def chat_page(req):
     [Giao diện Chat Khủng] GET /chat
     - Mở trang hiển thị nội dung cuộc đàm thoại (chat window) giữa 2 người dũng sĩ P2P.
     - Đòi hỏi thông số URL phải có đủ: `?peer=...&ip=...&port=...` nếu không sẽ báo lỗi ngay lập tức.
+    - Yêu cầu đăng nhập (cookie auth=true).
     """
+    unauthorized = require_auth(req)
+    if unauthorized:
+        return unauthorized
     if not hasattr(req, "query_params") or req.query_params is None:
         req.query_params = {}
         parsed_url = urlparse(req.path)
