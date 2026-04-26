@@ -34,14 +34,14 @@ from urllib.parse import *
 
 # from db.account import select_user, create_connection
 
-# Import lớp WeApRous từ module daemon
-from daemon.weaprous import WeApRous
+# Import lớp AsynapRous từ module daemon
+from daemon.asynaprous import AsynapRous
 
 # Đặt một cổng mặc định cho máy chủ chat, khác với các máy chủ khác
 PORT = 8001
 
-# Khởi tạo ứng dụng WeApRous
-app = WeApRous()
+# Khởi tạo ứng dụng AsynapRous
+app = AsynapRous()
 
 
 # -------------------------------------------------------------------
@@ -582,13 +582,13 @@ def dummy_chrome_devtools(req):
 if __name__ == "__main__":
     """
         Điểm khởi động chương trình: parse tham số dòng lệnh
-    và khởi chạy peer server WeApRous.
+    và khởi chạy peer server AsynapRous.
     """
 
     parser = argparse.ArgumentParser(
         prog="PeerServer",
         description="Khởi động Peer Server cho hệ thống Hybrid Chat",
-        epilog="Peer daemon của ứng dụng WeApRous",
+        epilog="Peer daemon của ứng dụng AsynapRous",
     )
     parser.add_argument(
         "--server-ip",

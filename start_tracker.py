@@ -33,14 +33,14 @@ from urllib.parse import *
 # from multiprocessing.managers import BaseManager
 
 
-# Import lớp WeApRous từ module daemon
-from daemon.weaprous import WeApRous
+# Import lớp AsynapRous từ module daemon
+from daemon.asynaprous import AsynapRous
 
 # Đặt một cổng mặc định cho máy chủ chat, khác với các máy chủ khác
 PORT = 8001
 
-# Khởi tạo ứng dụng WeApRous
-app = WeApRous()
+# Khởi tạo ứng dụng AsynapRous
+app = AsynapRous()
 
 # -------------------------------------------------------------------
 # Đây là "database" tạm thời của máy chủ tracker
@@ -311,13 +311,13 @@ def save_tracker(req):
 if __name__ == "__main__":
     """
     Điểm khởi động chương trình: parse tham số dòng lệnh
-    và khởi chạy máy chủ WeApRous (Tracker).
+    và khởi chạy máy chủ AsynapRous (Tracker).
     """
 
     parser = argparse.ArgumentParser(
         prog="ChatServer",
         description="Khởi động máy chủ Hybrid Chat (Tracker)",
-        epilog="Tracker daemon của ứng dụng WeApRous",
+        epilog="Tracker daemon của ứng dụng AsynapRous",
     )
     parser.add_argument(
         "--server-ip",

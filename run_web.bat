@@ -22,5 +22,25 @@ start "Web MinhKhang" cmd /k "title MinhKhang-9004 && python start_peer.py --ser
 :: [Peer 5] Web ChanKien: Mo cong Server Web 9005 (.html). Tuyen phong thu sau cung p2p.
 start "Web ChanKien" cmd /k "title ChanKien-9005 && python start_peer.py --server-ip 127.0.0.1 --server-port 9005"
 
-ECHO Da khoi dong xong! Hay mo Chrome hoac Edge va truy cap:
-ECHO Toi trang Tracker: http://127.0.0.1:9000 de dang nhap
+ECHO ==============================================================================
+ECHO [!] DA KHOI DONG XONG TOAN BO HE THONG P2P (ASYNAPROUS FRAMEWORK) [!]
+ECHO ==============================================================================
+ECHO.
+ECHO Hay nhan giu phim CTRL + Click chuot vao cac link ben duoi de mo trang web:
+ECHO.
+ECHO --- MAY CHU TRUNG TAM (TRACKER) ---
+ECHO [Trang Dang nhap]          http://127.0.0.1:9000/login
+ECHO [Trang Chu - Can Login]    http://127.0.0.1:9000/index.html
+ECHO [Danh sach IP hien co]     http://127.0.0.1:9000/get-list
+ECHO.
+ECHO --- MAY CHU NGUOI DUNG (PEER CHAT) ---
+ECHO [Web Peer 1 - VoPham]      http://127.0.0.1:9001/active-peers
+ECHO [Web Peer 2 - MinhDuc]     http://127.0.0.1:9002/active-peers
+ECHO [Web Peer 3 - TrungQuan]   http://127.0.0.1:9003/active-peers
+ECHO [Web Peer 4 - MinhKhang]   http://127.0.0.1:9004/active-peers
+ECHO [Web Peer 5 - ChanKien]    http://127.0.0.1:9005/active-peers
+ECHO.
+ECHO ------------------------------------------------------------------------------
+ECHO Luu y: Ban bat buoc phai vao [Trang Dang nhap] truoc de khai bao IP P2P!
+ECHO ------------------------------------------------------------------------------
+pause

@@ -5,7 +5,7 @@
 # and is released under the "MIT License Agreement". Please see the LICENSE
 # file that should have been included as part of this package.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -16,15 +16,15 @@
 start_sampleapp
 ~~~~~~~~~~~~~~~~~
 
-Module nay la vi du mau (sample) minh hoa cach su dung framework WeApRous
+Module nay la vi du mau (sample) minh hoa cach su dung framework AsynapRous
 de dinh nghia cac route (duong dan HTTP) va chay mot web server don gian.
 
 Chuc nang chinh:
 - Dang ky cac route /login (POST) va /hello (PUT) bang decorator @app.route
-- Khoi dong WeApRous server tren ip:port truyen vao tu dong lenh
+- Khoi dong AsynapRous server tren ip:port truyen vao tu dong lenh
 
 Muc dich:
-- Kiem tra framework WeApRous hoat dong dung
+- Kiem tra framework AsynapRous hoat dong dung
 - Lam mau de hieu cach viet route trong he thong
 
 Cach chay:
@@ -35,12 +35,12 @@ import json
 import socket
 import argparse
 
-from daemon.weaprous import WeApRous  # Import framework WeApRous tu nhom tu xay dung
+from daemon.asynaprous import AsynapRous  # Import framework AsynapRous tu nhom tu xay dung
 
-PORT = 8000  # Cong mac dinh cho sample app
+PORT = 2026  # Cong mac dinh cho sample app
 
-# Khoi tao doi tuong WeApRous (tuong tu Flask app = Flask(__name__))
-app = WeApRous()
+# Khoi tao doi tuong AsynapRous (tuong tu Flask app = Flask(__name__))
+app = AsynapRous()
 
 
 @app.route("/login", methods=["POST"])
@@ -79,8 +79,8 @@ if __name__ == "__main__":
     # Phan tich tham so dong lenh
     parser = argparse.ArgumentParser(
         prog="SampleApp",
-        description="Chay ung dung mau WeApRous de kiem tra framework",
-        epilog="WeApRous Sample Application",
+        description="Chay ung dung mau AsynapRous de kiem tra framework",
+        epilog="AsynapRous Sample Application",
     )
     parser.add_argument(
         "--server-ip",
@@ -100,4 +100,4 @@ if __name__ == "__main__":
 
     # Gan dia chi va chay server
     app.prepare_address(ip, port)
-    app.run()  # Chay WeApRous server (non-blocking, dung threading)
+    app.run()  # Chay AsynapRous server (non-blocking, dung threading)

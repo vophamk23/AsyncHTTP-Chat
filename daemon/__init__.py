@@ -3,7 +3,7 @@
 # All rights reserved.
 # This file is part of the CO3093/CO3094 course.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -12,7 +12,7 @@
 
 from .backend import create_backend
 from .proxy import create_proxy
-from .weaprous import WeApRous
+from .asynaprous import AsynapRous
 from .response import Response
 from .request import Request
 from .backend import create_backend

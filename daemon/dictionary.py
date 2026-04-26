@@ -3,7 +3,7 @@
 # All rights reserved.
 # This file is part of the CO3093/CO3094 course.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying

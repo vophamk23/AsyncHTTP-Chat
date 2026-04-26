@@ -14,7 +14,7 @@
 | Multi-thread ở tầng Proxy                 | `daemon/proxy.py` → `run_proxy()`                     | Proxy server cũng dùng threading cho mỗi client, kèm round-robin load balancing                    |
 | Coroutine / asyncio                       | `daemon/httpadapter.py` → `handle_client_coroutine()` | Phiên bản async dùng `async/await`, `await reader.read()` không block event loop                   |
 | Callback / Selectors                      | `daemon/backend.py` → import `selectors`              | Khai báo cơ chế event-driven (1 thread theo dõi nhiều socket)                                      |
-| Framework tự viết                         | `daemon/weaprous.py` → class `WeApRous`               | Router decorator giống Flask nhưng tự viết bằng Python thuần                                       |
+| Framework tự viết                         | `daemon/asynaprous.py` → class `AsynapRous`           | Router decorator thông minh (Sync/Async) tự viết bằng Python thuần                                 |
 | Request parser                            | `daemon/request.py` → class `Request`                 | Parse HTTP request line, headers, cookies, query params                                            |
 | Response builder                          | `daemon/response.py` → class `Response`               | Build HTTP response 200/400/401/404/500, Set-Cookie header                                         |
 | HTTP Adapter                              | `daemon/httpadapter.py` → class `HttpAdapter`         | Nhận kết nối, đọc request, dispatch đến handler hoặc serve file tĩnh                               |
@@ -89,14 +89,14 @@ assign1-mmt-finished-main/
 │   ├── httpadapter.py     - HTTP dispatch + Cookie auth check
 │   ├── request.py         - Parse HTTP request, cookie, query params
 │   ├── response.py        - Build HTTP response (200/400/401/404/500)
-│   ├── weaprous.py        - WeApRous framework (routing decorator)
+│   ├── asynaprous.py      - AsynapRous framework (routing decorator)
 │   └── dictionary.py      - CaseInsensitiveDict
 ├── start_tracker.py       - Tracker: login, submit-info, get-list
 ├── start_peer.py          - Peer server: add-list, send/receive msg
 ├── start_peer_cli.py      - CLI: broadcast, direct, join/leave channel
 ├── start_proxy.py         - Proxy server (load balancer)
 ├── start_backend.py       - Backend server đơn giản (demo non-blocking)
-├── start_sampleapp.py     - Ứng dụng mẫu WeApRous (demo framework)
+├── start_sampleapp.py     - Ứng dụng mẫu AsynapRous (demo framework)
 ├── manager.py             - Shared state manager (multiprocessing)
 ├── www/
 │   ├── login.html           - Trang đăng nhập
@@ -517,19 +517,23 @@ sel = selectors.DefaultSelector()
 
 **Giải thích:** "Ngoài threading và asyncio, còn khai báo cơ chế selectors – mô hình event-driven: 1 thread theo dõi nhiều socket cùng lúc, chỉ xử lý khi có sự kiện xảy ra. Đây là nn tảng của các web server hiệu suất cao như nginx"
 
-**Bước 5 – Mở `daemon/weaprous.py`, chứng minh tự viết framework:**
+**Bước 5 – Mở `daemon/asynaprous.py`, chứng minh tự viết framework:**
 
 ```python
-class WeApRous:
+class AsynapRous:
     def route(self, path, methods=['GET']):
         def decorator(func):
             for method in methods:
                 self.routes[(method, path)] = func
-            return func
+            # Tự động bọc hàm Sync/Async
+            if inspect.iscoroutinefunction(func):
+               return async_wrapper
+            else:
+               return sync_wrapper
         return decorator
 ```
 
-**Giải thích:** "Toàn bộ dùng Python standard library: socket, threading, asyncio. Không flask, không django. WeApRous là framework tự xây dựng"
+**Giải thích:** "Toàn bộ dùng Python standard library: socket, threading, asyncio. Không flask, không django. AsynapRous là framework tự xây dựng hỗ trợ cả hàm đồng bộ lẫn bất đồng bộ (Coroutine) rất linh hoạt"
 
 **Bước 5 – Demo trực quan: Mở nhiều tab cùng lúc:**
 

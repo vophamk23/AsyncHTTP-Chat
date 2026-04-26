@@ -6,7 +6,7 @@
 # and is released under the "MIT License Agreement". Please see the LICENSE
 # file that should have been included as part of this package.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -18,7 +18,7 @@
 start_proxy
 ~~~~~~~~~~~~~~~~~
 
-Module nay la diem khoi dau de chay Reverse Proxy Server su dung WeApRous.
+Module nay la diem khoi dau de chay Reverse Proxy Server su dung AsynapRous.
 
 Chuc nang chinh:
 - Doc file cau hinh (config/proxy.conf) de lay thong tin virtual host va chinh sach phan phoi
