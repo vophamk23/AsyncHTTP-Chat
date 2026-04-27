@@ -31,8 +31,8 @@ The entire networking stack - TCP socket server, HTTP parser, request/response b
 
 Two client modes are available:
 
-- **Web UI** (`start_peer.py`) — browser-based chat interface with polling
-- **CLI** (`start_peer_cli.py`) — terminal-based client with multi-channel and broadcast support
+- **Web UI** (`start_peer.py`) - browser-based chat interface with polling
+- **CLI** (`start_peer_cli.py`) - terminal-based client with multi-channel and broadcast support
 
 
 ## Architecture
