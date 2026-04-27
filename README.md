@@ -137,7 +137,7 @@ assign1-mmt/
 ## Requirements
 
 - **Python** 3.8+
-- **No external packages required** — uses standard library only
+- **No external packages required** - uses standard library only
 
 ```bash
 # Verify Python version
@@ -147,7 +147,7 @@ python --version
 
 ## Quick Start
 
-### Option 1 — One-click launch (Windows)
+### Option 1 - One-click launch (Windows)
 
 **Web UI mode** (recommended for demo):
 
@@ -165,15 +165,15 @@ run_cli.bat
 
 Launches 7 CMD windows: 2 Trackers (ports 8001, 8002) + 5 CLI peer clients (ports 9001–9005).
 
-### Option 2 — Manual launch
+### Option 2 - Manual launch
 
-**Step 1 — Start Tracker:**
+**Step 1 - Start Tracker:**
 
 ```bash
 python start_tracker.py --server-ip 127.0.0.1 --server-port 9000
 ```
 
-**Step 2 — Start Peer servers** (each in a separate terminal):
+**Step 2 - Start Peer servers** (each in a separate terminal):
 
 ```bash
 python start_peer.py --server-ip 127.0.0.1 --server-port 9001
@@ -181,7 +181,7 @@ python start_peer.py --server-ip 127.0.0.1 --server-port 9002
 python start_peer.py --server-ip 127.0.0.1 --server-port 9003
 ```
 
-**Step 3 — (Optional) Start Reverse Proxy:**
+**Step 3 - (Optional) Start Reverse Proxy:**
 
 ```bash
 python start_proxy.py --server-ip 0.0.0.0 --server-port 8888
@@ -190,7 +190,7 @@ python start_proxy.py --server-ip 0.0.0.0 --server-port 8888
 > Wait until each terminal shows `[Backend] Port XXXX is ready...` before proceeding.
 
 
-### Step 4 — Register peers via browser
+### Step 4 - Register peers via browser
 
 1. Open `http://127.0.0.1:9000/login` in a **private/incognito window** per user
 2. Log in with credentials from the [accounts table](#account-management)
@@ -252,12 +252,12 @@ Cookie-based authentication per RFC 6265 / RFC 7235:
 
 ### 2.3 Hybrid Chat Application
 
-**Phase 1 – Tracker (Client-Server):**
+**Phase 1 - Tracker (Client-Server):**
 - Peers register their `ip:port` with the Tracker via `POST /submit-info`
 - Tracker maintains an in-memory `peer_list` dict
 - Any peer can query `GET /get-list` to discover all online peers
 
-**Phase 2 – P2P Direct Messaging:**
+**Phase 2 - P2P Direct Messaging:**
 - Each peer runs its own HTTP server
 - Messages sent via `POST /receive-message` directly to target peer's IP:Port
 - No Tracker involvement after initial discovery
@@ -409,7 +409,6 @@ host "app.local" {
 
 `start_proxy.py` parses this file at startup and builds a routing table. Incoming requests are forwarded to backends using round-robin selection with thread-safe counters.
 
----
 
 ## License
 
