@@ -1,4 +1,4 @@
-# AsynapRous – Hybrid P2P Chat System
+# AsynapRous-Chat – Hybrid P2P Chat System
 
 > **CO3093/CO3094 – Computer Networks | HCMC University of Technology (VNU-HCM)**
 > Built entirely from scratch using Python standard library — no Flask, no Django.
