@@ -24,7 +24,7 @@
 
 **AsynapRous** is a hybrid Peer-to-Peer (P2P) chat application built on top of a custom HTTP framework of the same name. The system implements a **Hybrid P2P** architecture: a central **Tracker** server handles peer discovery and authentication, while actual messages are sent **directly between peers** without passing through any central server.
 
-The entire networking stack — TCP socket server, HTTP parser, request/response builder, routing decorator, reverse proxy, and load balancer — is implemented using only Python's standard library (`socket`, `threading`, `asyncio`, `selectors`).
+The entire networking stack — TCP socket server, HTTP parser, request/response builder, routing decorator, reverse proxy, and load balancer - is implemented using only Python's standard library (`socket`, `threading`, `asyncio`, `selectors`).
 
 Two client modes are available:
 
