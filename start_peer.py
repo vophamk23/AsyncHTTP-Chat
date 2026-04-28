@@ -201,7 +201,7 @@ def serve_active_peers_js(req):
     - Phục vụ logic Javascript riêng lẻ (DOM) cho trang active-peers.
     """
     try:
-        req.path = "/js/active-peers.js"
+        req.path = "active-peers.js" #Dư cái /js
         resp = Response()
         resp.headers = {"Content-Type": "application/javascript"}
         return resp.build_response(req)

@@ -139,7 +139,7 @@ class Response:
             base_dir = BASE_DIR + "www/"
         elif mime_type == "text/css":
             base_dir = BASE_DIR + "static/css"
-        elif mime_type == "text/javascript":
+        elif mime_type == "text/javascript" or mime_type == "application/javascript": #thiếu khúc sau or
             base_dir = BASE_DIR + "static/js"
         elif mime_type.startswith("image/"):
             base_dir = BASE_DIR + "static/"
