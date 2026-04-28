@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Peer - BKSysNet</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <!-- Badge hiển thị Tên tài khoản đang đăng nhập -->
+    <div style="position: absolute; top: 1.5rem; left: 1.5rem; background: rgba(255, 255, 255, 0.9); padding: 0.5rem 1rem; border-radius: 99px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); font-weight: 600; font-size: 0.9rem; color: var(--text-main); border: 1px solid var(--card-border); backdrop-filter: blur(5px); z-index: 99;">
+      👤 Web User: <span id="currentOwnerName" style="color: var(--primary-color)">Khách</span>
+    </div>
+
+<div class="container">
+  <h2>Register Your Peer</h2>
+  <p style="color: var(--text-muted); margin-bottom: 2rem;">Configure your peer endpoint to join the network.</p>
+
+  <form id="submitForm">
+    <div class="form-group">
+      <label>Host IP Address</label>
+      <input name="ip" type="text" placeholder="e.g. 127.0.0.1" required>
+    </div>
+    
+    <div class="form-group">
+      <label>Listening Port</label>
+      <input name="port" type="text" placeholder="e.g. 9001" required>
+    </div>
+    
+    <button type="submit" class="btn" style="margin-top: 1rem;">Register Node</button>
+    <div id="errorMsg" class="error"></div>
+  </form>
+</div>
+
+<script>
+// Đọc và hiển thị tên đăng nhập lúc mới mở trang
+const _match = document.cookie.match(/username=([^;]+)/);
+document.getElementById('currentOwnerName').innerText = _match ? _match[1] : "Unknown";
+
+document.getElementById('submitForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+
+    const ip = this.ip.value;
+    const port = this.port.value;
+    const errorDiv = document.getElementById('errorMsg');
+
+    try {
+        // 1. Gửi peer info đến tracker
+        const trackerResp = await fetch('/submit-info', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ ip, port })
+        });
+        const trackerData = await trackerResp.json();
+
+        if (!trackerResp.ok) {
+            errorDiv.textContent = trackerData.message || 'Submit failed';
+            return;
+        }
+
+        // 2. Lấy tracker IP/Port hiện tại
+        const tracker_ip = window.location.hostname;
+        const tracker_port = window.location.port || "9000";
+        await fetch('/save-tracker', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                trackerIP: window.location.hostname,
+                trackerPort: window.location.port || "9000"
+            })
+        });
+
+        // 3. Redirect sang peer server (peer_ip:peer_port)
+        const peerUrl = `http://${ip}:${port}/view-my-channels`;
+        window.location.href = peerUrl;
+
+    } catch(err) {
+        console.error(err);
+        errorDiv.textContent = 'Error: ' + err.message;
+    }
+});
+</script>
+
