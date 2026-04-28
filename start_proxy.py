@@ -1,10 +1,7 @@
-# reverse_proxy.py
 #
-# Copyright (C) 2025 pdnguyen of HCMC University of Technology VNU-HCM.
+# Copyright (C) 2026 pdnguyen of HCMC University of Technology VNU-HCM.
 # All rights reserved.
-# This file is part of the CO3093/CO3094 course,
-# and is released under the "MIT License Agreement". Please see the LICENSE
-# file that should have been included as part of this package.
+# This file is part of the CO3093/CO3094 course.
 #
 # AsynapRous release
 #
@@ -13,25 +10,25 @@
 # while attending the course
 #
 
-
 """
-start_proxy
-~~~~~~~~~~~~~~~~~
+start_proxy.py – Khởi động máy chủ Reverse Proxy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Module nay la diem khoi dau de chay Reverse Proxy Server su dung AsynapRous.
+Module này là điểm khởi đầu để chạy Máy chủ Reverse Proxy,
+tích hợp thuật toán cân bằng tải (Load Balancing) thông minh.
 
-Chuc nang chinh:
-- Doc file cau hinh (config/proxy.conf) de lay thong tin virtual host va chinh sach phan phoi
-- Phan tich cac khoi 'host' trong file conf de xay dung bang dinh tuyen (routing table)
-- Khoi dong proxy server tren ip:port truyen vao tu dong lenh
+Chức năng chính:
+- Đọc tệp cấu hình (config/proxy.conf) để lấy thông tin các miền ảo (virtual hosts).
+- Phân tích các khối 'host' để xây dựng Bản đồ Định tuyến (Routing Table).
+- Khởi động máy chủ Proxy tại địa chỉ IP và Cổng mạng cấu hình.
 
-Cach Proxy hoat dong:
-- Nhan request tu client
-- Tra cuu routing table de tim backend phu hop
-- Chuyen tiep (forward) request den backend do
-- Chinh sach mac dinh: round-robin
+Cách Proxy hoạt động:
+- Tiếp nhận yêu cầu HTTP từ phía Client.
+- Quét Bản đồ Định tuyến để tìm danh sách Backend phù hợp cho tên miền được yêu cầu.
+- Áp dụng thuật toán "Round-robin" để luân chuyển kết nối, tránh quá tải một máy chủ.
+- Chuyển tiếp (forward) yêu cầu và hoàn trả dữ liệu lại cho Client.
 
-Cach chay:
+Cách khởi động:
     python start_proxy.py --server-ip 127.0.0.1 --server-port 8080
 """
 

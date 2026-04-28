@@ -33,14 +33,14 @@ from urllib.parse import *
 # from multiprocessing.managers import BaseManager
 
 
-# Import lớp WeApRous từ module daemon
-from daemon.weaprous import WeApRous
+# Import lớp AsynapRous từ module daemon
+from daemon.asynaprous import AsynapRous
 
 # Đặt một cổng mặc định cho máy chủ chat, khác với các máy chủ khác
 PORT = 8001
 
-# Khởi tạo ứng dụng WeApRous
-app = WeApRous()
+# Khởi tạo ứng dụng AsynapRous
+app = AsynapRous()
 
 # -------------------------------------------------------------------
 # Đây là "database" tạm thời của máy chủ tracker
@@ -53,6 +53,23 @@ app = WeApRous()
 # }
 # -------------------------------------------------------------------
 peer_list = {}
+
+
+def require_auth(req):
+    """
+    Xác thực cookie trên Tracker. Nếu chưa đăng nhập, chuyển hướng về trang /login.
+    """
+    auth = req.cookies.get("auth", "") if req.cookies else ""
+    if auth == "true":
+        return None
+    print("[Auth] Chưa đăng nhập Tracker, chuyển hướng về /login")
+    return (
+        "HTTP/1.1 302 Found\r\n"
+        "Location: /login\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("utf-8")
 
 
 # --- Giai đoạn 1: Client-Server (Tracker) ---
@@ -121,7 +138,12 @@ def submit_form(req):
     - Trả về nguyên văn file `submit.html`.
     - Đây là trang hiển thị 2 ô trống yêu cầu người dùng điền IP và Port của máy mình
       để đăng ký tham gia vào mạng lưới chat P2P.
+    - Yêu cầu đăng nhập.
     """
+    unauth = require_auth(req)
+    if unauth:
+        return unauth
+        
     try:
         req.path = "/submit.html"
         return Response().build_response(req)
@@ -143,6 +165,10 @@ def submit_info(req):
     """
     print(f"[ChatServer] Nhận yêu cầu /submit-info...")
 
+    unauth = require_auth(req)
+    if unauth:
+        return unauth
+        
     try:
         body = req.body
         if body.strip().startswith("{"):
@@ -285,13 +311,13 @@ def save_tracker(req):
 if __name__ == "__main__":
     """
     Điểm khởi động chương trình: parse tham số dòng lệnh
-    và khởi chạy máy chủ WeApRous (Tracker).
+    và khởi chạy máy chủ AsynapRous (Tracker).
     """
 
     parser = argparse.ArgumentParser(
         prog="ChatServer",
         description="Khởi động máy chủ Hybrid Chat (Tracker)",
-        epilog="Tracker daemon của ứng dụng WeApRous",
+        epilog="Tracker daemon của ứng dụng AsynapRous",
     )
     parser.add_argument(
         "--server-ip",

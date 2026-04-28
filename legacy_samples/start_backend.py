@@ -5,7 +5,7 @@
 # and is released under the "MIT License Agreement". Please see the LICENSE
 # file that should have been included as part of this package.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -17,7 +17,7 @@ start_backend
 ~~~~~~~~~~~~~~~~~
 
 Module nay la diem khoi dau de chay mot backend server don gian
-su dung socket framework cua WeApRous.
+su dung socket framework cua AsynapRous.
 
 Chuc nang chinh:
 - Doc tham so dong lenh (--server-ip, --server-port) de cau hinh server
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="Backend",
         description="Khoi dong Backend Server (Non-blocking HTTP)",  # Mo ta chuong trinh
-        epilog="WeApRous Backend Daemon",
+        epilog="AsynapRous Backend Daemon",
     )
     parser.add_argument(
         "--server-ip",

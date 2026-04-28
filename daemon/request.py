@@ -1,9 +1,9 @@
 #
-# Copyright (C) 2025 pdnguyen of HCMC University of Technology VNU-HCM.
+# Copyright (C) 2026 pdnguyen of HCMC University of Technology VNU-HCM.
 # All rights reserved.
 # This file is part of the CO3093/CO3094 course.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -14,163 +14,195 @@
 daemon.request
 ~~~~~~~~~~~~~~~~~
 
-Module này cung cấp lớp Request để phân tích (parse) HTTP request từ client.
-Bất kỳ request nào gửi đến server đều được đƳa qua lớp này để trích xuất:
-- Request line: method, path, version
-- Headers: tất cả header (không phân biệt hoa/thường)
-- Cookies: parse từ header 'Cookie'
-- Query params: parse từ URL (ví dụ: ?user=Alice&peer=Bob)
-- Hook: hàm xử lý tương ứng từ bảng route
+Module này cung cấp đối tượng Request để quản lý và duy trì
+các thiết lập của một yêu cầu HTTP (cookies, xác thực, proxies).
 """
-
 from .dictionary import CaseInsensitiveDict
 import json as json_lib
 from urllib.parse import urlparse, parse_qs
 
+class Request():
+    """Đối tượng :class:`Request <Request>` có khả năng thay đổi toàn diện,
+    chứa chính xác các byte sẽ được gửi (hoặc đã nhận) đến/từ máy chủ.
 
-# Cấu trúc hệ thống quản trị chuyên sâu hỗ trợ phân giải và trích xuất nguyên hàm HTTP Request
-class Request:
-    """Lớp Request – đối tượng biểu diễn một HTTP request từ client.
+    Các phiên bản (instances) được sinh ra từ đối tượng :class:`Request <Request>`,
+    và không nên tự tạo thủ công; làm như vậy có thể gây ra những hậu quả không mong muốn.
 
-    Mỗi kết nối từ client sẽ tạo ra một đối tượng Request để
-    lưu trữ và truy cập các thông tin cịa request dễ dàng.
+    Ví dụ sử dụng (Usage)::
 
-    Ví dụ sử dụng::
-      >>> req = Request()
-      >>> req.prepare(raw_http_string, routes)
-      >>> print(req.method, req.path, req.cookies)
+      >>> import daemon.request
+      >>> req = request.Request()
+      ## Lấy tin nhắn gửi đến (incoming_msg)
+      >>> req.prepare(incoming_msg)
+      >>> req
+      <Request>
     """
-
     __attrs__ = [
         "method",
         "url",
         "headers",
         "body",
+        "_raw_headers",
+        "_raw_body",
         "reason",
         "cookies",
         "body",
         "routes",
         "hook",
-        "query_params",
+        "query_params", # Đã bổ sung để hỗ trợ query string URL
     ]
 
-    # Khởi tạo đối tượng rỗng đệm phục vụ quy trình bóc tách siêu dữ liệu HTTP
     def __init__(self):
-        self.method = None  # HTTP verb: GET, POST, PUT, DELETE ...
-        self.url = None  # URL đầy đủ của request
-        self.headers = None  # Dict chứa các header (key thường thường)
-        self.path = None  # Đường dẫn URL (ví dụ: /login, /index.html)
-        self.cookies = None  # Dict các cookie parse từ header 'Cookie'
-        self.body = None  # Nội dung body của request (dành cho POST)
-        self.routes = {}  # Bảng ánh xạ route từ WeApRous
-        self.hook = None  # Hàm xử lý (handler) khớp với route hiện tại
-        # Dict chứa các tham số query string từ URL (ví dụ: ?user=Alice&peer=Bob)
+        #: Phương thức HTTP (GET, POST, PUT...).
+        self.method = None
+        #: Địa chỉ URL HTTP mà yêu cầu nhắm tới.
+        self.url = None
+        #: Từ điển (dictionary) chứa các HTTP headers.
+        self.headers = None
+        #: Đường dẫn HTTP (HTTP path).
+        self.path = None        
+        #: Bộ cookie được dùng để tạo header Cookie.
+        self.cookies = None
+        #: Nội dung yêu cầu (body) gửi tới máy chủ.
+        self.body = None
+        #: Raw headers (chuỗi chưa phân tích).
+        self._raw_headers = None
+        #: Raw body (nội dung chưa phân tích).
+        self._raw_body = None
+        #: Các định tuyến (Routes).
+        self.routes = {}
+        #: Điểm gắn kết (Hook point) cho các đường dẫn đã được định tuyến.
+        self.hook = None
+        #: Tham số truy vấn (ví dụ: ?user=A) - Cải tiến thực tế
         self.query_params = {}
 
-    # Khai thác định dạng cốt lõi (Method, URL, Version) từ dòng Header mở đầu gói tin
     def extract_request_line(self, request):
-        """Phân tích dòng đầu tiên của HTTP request (request line).
-        Tích xuất method, path và query params từ URL."""
+        """Phân tích dòng đầu tiên của yêu cầu HTTP (request line)."""
         try:
             lines = request.splitlines()
-            first_line = lines[0]  # Ví dụ: 'GET /login?user=Alice HTTP/1.1'
+            first_line = lines[0]
             method, raw_path, version = first_line.split()
 
-            parsed = urlparse(raw_path)  # Parse URL thành các phần
-            path = parsed.path  # Lấy phần đường dẫn
+            # Phân giải query_params để Web Chat P2P hoạt động
+            parsed = urlparse(raw_path)  
+            path = parsed.path  
 
-            if path == "/":
-                path = "/index.html"  # Mặc định '/' → '/index.html'
-
-            # Chuyển query string thành dict {key: value}
+            if path == '/':
+                path = '/index.html'
+                
             self.query_params = {
                 k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()
             }
-
         except Exception:
-            return None, None
+            return None, None, None
 
         return method, path, version
-
-    # Dàn phẳng hệ thống từ điển trạng thái phụ thuộc của luồng HTTP Headers vào bộ đệm tĩnh
+             
     def prepare_headers(self, request):
-        """Phân tích và cấu trúc lại các HTTP header từ chuỗi request thô."""
-        lines = request.split("\r\n")
+        """Chuẩn bị và phân tích các HTTP headers được cung cấp."""
+        lines = request.split('\r\n')
         headers = {}
         for line in lines[1:]:
-            if ": " in line:
-                key, val = line.split(": ", 1)
-                headers[key.lower()] = val  # Đổi key về chữ thường để tra cứu dễ dàng
+            if ': ' in line:
+                key, val = line.split(': ', 1)
+                headers[key.lower()] = val
         return headers
 
-    # Trạm trung tâm tổng thầu điều phối quy trình phân mảnh chuỗi văn bản Request thô
+    def fetch_headers_body(self, request):
+        """Phân chia yêu cầu thành phần Header và phần Body."""
+        # Cắt yêu cầu (request) tại khoảng trắng kép (blank line)
+        parts = request.split("\r\n\r\n", 1) 
+
+        _headers = parts[0]
+        _body = parts[1] if len(parts) > 1 else ""
+        return _headers, _body
+
     def prepare(self, request, routes=None):
-        """Phân tích toàn bộ HTTP request thô: request line, headers, cookies và route hook."""
+        """Chuẩn bị toàn bộ yêu cầu (request) với các tham số cung cấp sẵn."""
 
-        # Bước 1: Phân tích request line (method, path, version)
+        # Trích xuất dòng Request line từ header của yêu cầu
+        print("[Request] Đang chuẩn bị (prepare) request msg...")
         self.method, self.path, self.version = self.extract_request_line(request)
-        print(
-            "[Request] {} path {} version {}".format(
-                self.method, self.path, self.version
-            )
-        )
+        print("[Request] {} path {} version {}".format(self.method, self.path, self.version))
 
-        # Bước 2: Gắn hàm xử lý (hook) dựa trên bảng route của WeApRous
-        if not routes == {}:
-            self.routes = routes
-            # Tìm hàm xử lý khớp với (method, path) hiện tại
-            self.hook = routes.get((self.method, self.path))
-
-        # Bước 3: Phân tích headers
+        # Phân tích headers
         self.headers = self.prepare_headers(request)
 
-        # Bước 4: Phân tích cookie từ header 'Cookie'
-        cookies_string = self.headers.get("cookie", "")
+        #
+        # @bksysnet Chuẩn bị hook của webapp với instance AsynapRous.
+        # Hành vi mặc định của máy chủ HTTP là định tuyến rỗng.
+        #
+        # Đã giải quyết TODO: Quản lý webapp hook ở điểm gắn kết này.
+        #
+        if routes is not None and routes != {}:
+            self.routes = routes
+            print("[Request] Đang định tuyến METHOD {} path {}".format(self.method, self.path))
+            self.hook = routes.get((self.method, self.path))
+            print("[Request] Hook xử lý yêu cầu (request) hiện tại: {}".format(self.hook))
+            #
+            # Các thao tác tùy chỉnh cho self.hook đã được framework AsynapRous 
+            # tự động liên kết bằng decorator @app.route()
+            #
+
+        # Lấy header và body thô
+        self._raw_headers, self._raw_body = self.fetch_headers_body(request)
+
+        # Đã giải quyết TODO: Triển khai chức năng cookie tại đây bằng cách phân tích header
+        cookies_string = self.headers.get('cookie', '')
         self.cookies = {}
         if cookies_string:
-            cookie_pairs = cookies_string.split("; ")  # Tách các cookie bằng '; '
+            cookie_pairs = cookies_string.split("; ")  
             for pair in cookie_pairs:
                 if "=" in pair:
-                    name, value = pair.split("=", 1)  # Tách name=value
+                    name, value = pair.split("=", 1)
                     self.cookies[name.strip()] = value
+
         return
 
-    # Định hình tập dữ liệu Body theo khuôn chuẩn mã hóa được yêu cầu từ Headers
     def prepare_body(self, data, files, json=None):
-        """Xây dựng body cho request dựa trên kiểu dữ liệu đưa vào."""
-        body = None
+        """Cấu trúc phần thân (body) của yêu cầu."""
+        body = b""
         if json is not None:
-            # Dữ liệu JSON: chuyển dict → chuỗi JSON và set Content-Type
             body = json_lib.dumps(json).encode("utf-8")
+            if self.headers is None: self.headers = {}
             self.headers["Content-Type"] = "application/json"
         elif data is not None:
-            # Dữ liệu thần: chuyển sang bytes nếu cần
             body = data if isinstance(data, bytes) else str(data).encode("utf-8")
         elif files is not None:
-            # Tập tin: ghép nội dung các file lại
             combined = b""
             for f in files:
-                combined += (
-                    f.read() if isinstance(f.read(), bytes) else f.read().encode()
-                )
+                combined += f.read() if isinstance(f.read(), bytes) else f.read().encode()
             body = combined
-        else:
-            body = b""
+            
         self.body = body
         self.prepare_content_length(self.body)
+        
+        #
+        # TODO chuẩn bị phương thức xác thực (authentication) cho yêu cầu
+        #
+        # self.auth = ...
+        return
 
-    # Chủ động lượng hóa quy mô Body và chèn thông số vào biến phụ Content-Length
     def prepare_content_length(self, body):
-        """Tính và đặt header Content-Length dựa trên độ dài body."""
+        """Cấu hình độ dài nội dung (Content-Length)."""
+        if self.headers is None: self.headers = {}
         self.headers["Content-Length"] = str(len(body)) if body else "0"
+        
+        #
+        # TODO chuẩn bị phương thức xác thực (authentication) cho yêu cầu
+        #
+        # self.auth = ...
         return
 
-    # Cổng chờ sẵn sàng bổ sung các chính sách xác thực Authorization chuyên biệt
     def prepare_auth(self, auth, url=""):
-        """(Chưa hiện thực) Dành cho xác thực request phía client nếu cần."""
+        """Chuẩn bị thiết lập xác thực."""
+        #
+        # TODO chuẩn bị phương thức xác thực (authentication) cho yêu cầu
+        #
+        # self.auth = ...
         return
 
-    # Đầu nối trung chuyển bộ Cookie phiên người dùng gài cắm vào giao thức truyền dẫn
     def prepare_cookies(self, cookies):
-        """Gán Cookie header vào request (dùng khi gửi request có cookie)."""
+        """Thiết lập các cookies vào header."""
+        if self.headers is None: self.headers = {}
         self.headers["Cookie"] = cookies

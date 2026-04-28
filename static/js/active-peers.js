@@ -99,21 +99,6 @@ async function loadPeers() {
         row.insertCell().appendChild(btn);
       });
 
-    // Đảm bảo thao tác khởi tạo phím điều hướng quản trị luồng kênh được thiết lập độc lập
-    // Add View Channels Button (if not exists)
-    let viewBtn = document.getElementById("viewChannelsBtn");
-    if (!viewBtn) {
-      viewBtn = document.createElement("button");
-      viewBtn.id = "viewChannelsBtn";
-      viewBtn.style.marginTop = "10px";
-      viewBtn.innerText = "View My Channels";
-      viewBtn.onclick = () => {
-        // Tái chuyển hướng (Redirect) không gian làm việc sang phân vùng hiển thị kênh tương tác
-        // localStorage.setItem("connectedPeers", JSON.stringify(connectedPeers));
-        window.location.href = "/view-my-channels";
-      };
-      document.body.appendChild(viewBtn);
-    }
   } catch (err) {
     console.error(err);
     const table = document.getElementById("peerTable");

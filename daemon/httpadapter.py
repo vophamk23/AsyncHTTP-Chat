@@ -1,9 +1,9 @@
 #
-# Copyright (C) 2025 pdnguyen of HCMC University of Technology VNU-HCM.
+# Copyright (C) 2026 pdnguyen of HCMC University of Technology VNU-HCM.
 # All rights reserved.
 # This file is part of the CO3093/CO3094 course.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -14,27 +14,42 @@
 daemon.httpadapter
 ~~~~~~~~~~~~~~~~~
 
-Module này là cầu nối giữa backend server và các route handler.
-Nó nhận kết nối từ client, đọc request, kiểm tra cookie xác thực,
-và quyết định trả về file tĩnh hay gọi đúng API handler.
+Module này đóng vai trò là "Bộ chuyển đổi lõi" (Core Adapter) của hệ thống.
+Nhiệm vụ của nó là tiếp nhận các luồng byte thô (raw bytes) từ máy chủ mạng (Backend),
+giải mã chúng thành thông tin HTTP có ý nghĩa (Headers, Body, Cookies), và sau đó 
+quyết định xem nên giao yêu cầu này cho AI/Logic xử lý (API Hooks) hay tự động 
+trả về một tệp tĩnh (HTML/CSS/JS).
 """
 
-import json  # Thư viện hỗ trợ đóng gói và phân giải bộ dữ liệu JSON băng chuyền
 from .request import Request
 from .response import Response
 from .dictionary import CaseInsensitiveDict
 
+import asyncio
+import inspect
+import json
 
-# Đóng vai trò bộ chuyển đổi (Adapter) trung tâm phân tích các luồng giao tiếp logic HTTP
+
 class HttpAdapter:
     """
-    Lớp trung gian xử lý HTTP request cho mỗi kết nối client.
-    Nhận socket kết nối, đọc dữ liệu, phân tích request,
-    và trả về response phù hợp.
+    Lớp :class:`HttpAdapter <HttpAdapter>` - "Tổng chỉ huy" xử lý vòng đời một giao dịch HTTP.
+
+    Nếu `backend.py` là người gác cổng đón khách, thì `HttpAdapter` chính là vị quản lý 
+    bên trong nhà hàng. Khi một khách hàng (Client) đưa ra yêu cầu (Request):
+    1. Quản lý sẽ đọc kỹ yêu cầu đó (Phân tích Header, Content-Length).
+    2. Kiểm tra xem khách có vé VIP không (Bảo mật Cookie).
+    3. Tra cứu sổ tay xem món này do đầu bếp nào nấu (Định tuyến API Hook).
+    4. Nếu không phải món đặc biệt, tự động mang đồ ăn đóng hộp ra phục vụ (Trả về File tĩnh).
+
+    Thuộc tính cốt lõi (Attributes):
+        ip (str): Địa chỉ IP của khách hàng.
+        port (int): Cổng mạng của khách hàng.
+        conn (socket): Đường ống kết nối trực tiếp (socket).
+        routes (dict): Bản đồ chỉ đường (Routes) để biết gọi hàm nào.
+        request (Request): Kho lưu trữ thông tin yêu cầu của khách.
+        response (Response): Kho lưu trữ thông điệp sẽ gửi trả lại khách.
     """
 
-    # Khai báo cấu trúc các trường thuộc tính cốt lõi (Core Attributes)
-    # nhằm định hướng và giới hạn chu kỳ sống của vòng lặp xử lý giao thức
     __attrs__ = [
         "ip",
         "port",
@@ -45,39 +60,41 @@ class HttpAdapter:
         "response",
     ]
 
-    # Khởi tạo bộ chứa tài nguyên, chuẩn bị tiếp nhận phân luồng Request và kết xuất Response
     def __init__(self, ip, port, conn, connaddr, routes):
-        """
-        Khởi tạo đối tượng HttpAdapter và chuẩn bị các đối tượng Request/Response.
-        """
-        self.ip = ip  # Địa chỉ IP server
-        self.port = port  # Cổng server
-        self.conn = conn  # Socket kết nối client
-        self.connaddr = connaddr  # Địa chỉ client (IP, port)
-        self.routes = routes  # Bảng route từ WeApRous
-        self.request = Request()  # Đối tượng phân tích request
-        self.response = Response()  # Đối tượng xây dựng response
+        """Khởi tạo một bộ điều phối HttpAdapter mới cho mỗi phiên làm việc."""
+        self.ip = ip
+        self.port = port
+        self.conn = conn
+        self.connaddr = connaddr
+        self.routes = routes
+        self.request = Request()
+        self.response = Response()
 
-    # Phân tích luồng giao tiếp Raw Socket, luyện thành HTTP Request để chuyển định tuyến (Router)
     def handle_client(self, conn, addr, routes):
         """
-        Xử lý toàn bộ một kết nối HTTP của client.
-        Quy trình:
-        1. Đọc headers (cho đến khi gặp '\r\n\r\n')
-        2. Đọc body nếu có Content-Length
-        3. Kiểm tra cookie xác thực cho /index.html
-        4. Gọi API hook nếu route khớp
-        5. Fallback trả về file tĩnh
+        Quy trình xử lý Giao dịch Đồng bộ (Synchronous Pipeline).
+
+        Đây là động cơ chính để đọc luồng dữ liệu TCP, bóc tách cấu trúc HTTP 
+        theo tiêu chuẩn quốc tế (RFC) và điều phối bảo mật. Đoạn code này đã giải quyết 
+        triệt để bài toán TODO của đồ án: Đọc đủ Content-Length và Chặn truy cập trái phép.
+
+        :param conn (socket): Ống dẫn dữ liệu tới Client.
+        :param addr (tuple): Tọa độ của Client.
+        :param routes (dict): Bản đồ định tuyến API.
         """
-        self.conn = conn
+        self.conn = conn        
         self.connaddr = addr
         req = self.request
         resp = self.response
 
-        # Bước 1: Đọc dữ liệu từ socket cho đến khi gặp phần kết thúc header '\r\n\r\n'
-        conn.settimeout(2)  # Timeout 2 giây nếu client không gửi gì
+        # -------------------------------------------------------------
+        # BƯỚC 1: HÚT DỮ LIỆU TỪ ỐNG DẪN (ĐỌC HEADER)
+        # -------------------------------------------------------------
+        # Đặt thời gian chờ tối đa 2 giây để tránh bị treo (Deadlock)
+        conn.settimeout(2)  
         raw = b""
         try:
+            # Liên tục đọc cho đến khi gặp ranh giới '\r\n\r\n' (Kết thúc Header)
             while b"\r\n\r\n" not in raw:
                 chunk = conn.recv(4096)
                 if not chunk:
@@ -86,39 +103,29 @@ class HttpAdapter:
         except Exception:
             pass
 
-        # Nếu không nhận được dữ liệu gì → đóng kết nối
+        # Nếu khách hàng ngắt kết nối đột ngột
         if not raw:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            try: conn.close()
+            except Exception: pass
             return
 
-        # Tách phần header khỏi raw bytes
+        # Bóc tách và giải mã văn bản Header
         header_end = raw.find(b"\r\n\r\n")
         header_bytes = raw[: header_end + 4] if header_end != -1 else raw
-        try:
-            header_text = header_bytes.decode("utf-8", errors="replace")
-        except Exception:
-            header_text = header_bytes.decode("latin1", errors="replace")
+        header_text = header_bytes.decode("utf-8", errors="replace")
 
-        # Bước 2: Phân tích request line, headers, cookies, route hook
+        # Nạp dữ liệu vào đối tượng Request để phân tích sâu (Method, URL, Cookies...)
         req.prepare(header_text, routes)
+        print("[HttpAdapter] Đang xử lý giao dịch đồng bộ từ {}".format(addr))
 
-        # Bước 3: Xác định độ dài body từ header Content-Length
-        content_length = 0
-        cl = req.headers.get("content-length")
-        if cl:
-            try:
-                content_length = int(cl)
-            except Exception:
-                content_length = 0
-
-        # Phần body đã đọc được cùng với headers (nếu có)
-        body_already = raw[header_end + 4 :] if header_end != -1 else b""
-        body = body_already
+        # -------------------------------------------------------------
+        # BƯỚC 2: HÚT PHẦN THÂN YÊU CẦU (ĐỌC BODY)
+        # -------------------------------------------------------------
+        content_length = int(req.headers.get("content-length", 0))
+        body = raw[header_end + 4 :] if header_end != -1 else b""
         to_read = content_length - len(body)
-        # Đọc phần body còn thiếu (nếu body dài hơn buffer đầu tiên)
+        
+        # Nếu Body còn thiếu, tiếp tục hút cho đến khi đủ chỉ tiêu
         try:
             while to_read > 0:
                 chunk = conn.recv(min(4096, to_read))
@@ -129,105 +136,107 @@ class HttpAdapter:
         except Exception:
             pass
 
-        # Lưu body dưới dạng chuỗi vào req.body
-        try:
-            req.body = body.decode("utf-8", errors="replace")
-        except Exception:
-            req.body = body.decode("latin1", errors="replace")
+        req.body = body.decode("utf-8", errors="replace")
 
-        # Now business logic: login + cookie-protected index
-        try:
-            # Normalize path: treat "/" as "/index.html"
-            path = req.path
-            if path == "/":
-                path = "/index.html"
-                req.path = path
+        def send_and_close(data_bytes):
+            """Hàm tiện ích nội bộ: Đẩy hàng qua ống dẫn và đóng nắp."""
+            try: conn.sendall(data_bytes)
+            except Exception: pass
+            try: conn.close()
+            except Exception: pass
 
-            # Hàm tiện ích: gửi response và đóng kết nối
-            def send_and_close(data_bytes):
-                try:
-                    conn.sendall(data_bytes)
-                except Exception:
-                    pass
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+        # -------------------------------------------------------------
+        # BƯỚC 3: TRẠM KIỂM SOÁT AN NINH (BẢO MẬT COOKIE)
+        # -------------------------------------------------------------
+        # Các khu vực mở cửa tự do
+        public_pages = ["/login.html", "/submit.html"]
+        
+        # Nếu truy cập vào các trang tĩnh (HTML) khác, phải xuất trình Thẻ VIP (Cookie auth=true)
+        if req.method == "GET" and req.path.endswith(".html") and req.path not in public_pages:
+            cookie_val = req.cookies.get("auth", "")
+            is_auth = (cookie_val and cookie_val.split(";", 1)[0].strip() == "true")
+            
+            if not is_auth:
+                # Trục xuất (Trả về lỗi 401 Unauthorized)
+                send_and_close(resp.build_unauthorized())
+                return
+            
+            # Nếu hợp lệ, phục vụ tệp HTML bình thường
+            send_and_close(resp.build_response(req))
+            return
 
-            # (Code POST /login đã chuyển vào start_chat_server.py – xử lý bởi WeApRous hook)
-
-            # Kiểm tra cookie xác thực cho GET /index.html
-            # Nếu cookie 'auth' không phải 'true' → trả 401 Unauthorized
-            if req.method == "GET" and req.path in ["/index.html"]:
-                cookie_val = req.cookies.get("auth", "")
-                is_auth = False
-                if cookie_val:
-                    if cookie_val.split(";", 1)[0].strip() == "true":
-                        is_auth = True
-                if not is_auth:
-                    # Chưa xác thực → trả 401
-                    result = resp.build_unauthorized()
-                    send_and_close(result)
-                    return
-                # Đã xác thực → phục vụ trang index.html bình thường
-                result = resp.build_response(req)
-                send_and_close(result)
+        # -------------------------------------------------------------
+        # BƯỚC 4: ĐIỀU PHỐI LOGIC VÀ TRẢ KẾT QUẢ (ROUTING / FALLBACK)
+        # -------------------------------------------------------------
+        # Nếu yêu cầu này khớp với một API Hook đã đăng ký (Ví dụ: /api/chat)
+        if req.hook:
+            try:
+                # Bàn giao cho Hàm xử lý (Handler) thực thi
+                api_response = req.hook(req)  
+                send_and_close(api_response)
+                return
+            except Exception as e:
+                # Nếu Hàm xử lý gặp lỗi, bung khiên bảo vệ 500 Internal Error
+                err = json.dumps({"error": "Lỗi máy chủ nội bộ", "message": str(e)})
+                response_bytes = (
+                    "HTTP/1.1 500 Internal Server Error\r\n"
+                    "Content-Type: application/json\r\n"
+                    f"Content-Length: {len(err.encode('utf-8'))}\r\n"
+                    "Connection: close\r\n\r\n" f"{err}"
+                ).encode("utf-8")
+                send_and_close(response_bytes)
                 return
 
-            # Nếu có API hook đã được đăng ký → gọi handler tương ứng
-            if req.hook:
-                try:
-                    api_response = req.hook(req)  # Gọi hàm xử lý đã đăng ký
-                    send_and_close(api_response)
-                    return
+        # Fallback (Mặc định): Nếu không có Hook nào, tự động tìm và trả về file tĩnh (CSS, JS, Hình ảnh...)
+        send_and_close(resp.build_response(req))
+        return
 
-                except Exception as e:
-                    # Lỗi khi chạy handler → trả 500 Internal Server Error
-                    import json
+    async def handle_client_coroutine(self, reader, writer):
+        """
+        Quy trình xử lý Giao dịch Bất đồng bộ (Asynchronous Pipeline).
 
-                    err = json.dumps(
-                        {"error": "Internal Server Error", "message": str(e)}
-                    )
-                    response_bytes = (
-                        "HTTP/1.1 500 Internal Server Error\r\n"
-                        "Content-Type: application/json\r\n"
-                        f"Content-Length: {len(err.encode('utf-8'))}\r\n"
-                        "Connection: close\r\n"
-                        "\r\n"
-                        f"{err}"
-                    ).encode("utf-8")
-                    send_and_close(response_bytes)
-                    return
+        Phiên bản nâng cấp dùng Coroutine (thư viện Asyncio) để đọc/ghi dữ liệu
+        mà không làm "kẹt" (block) tiến trình chính của máy chủ.
 
-            # Fallback: không có hook → phục vụ file tĩnh
-            result = resp.build_response(req)
-            send_and_close(result)
+        :param reader: Luồng dữ liệu trôi vào (Stream reader).
+        :param writer: Luồng dữ liệu trôi ra (Stream writer).
+        """
+        req = self.request
+        resp = self.response
+        addr = writer.get_extra_info("peername")
+        print("[HttpAdapter] Đang xử lý giao dịch BẤT ĐỒNG BỘ từ {})".format(addr))
+
+        # Đọc dữ liệu không chặn (Non-blocking read)
+        msg = await reader.read(4096)
+        if not msg:
+            writer.close()
             return
 
-        except Exception as e:
-            # Xảy ra lỗi bất ngờ → trả 500
-            body = b"Internal Server Error"
-            header = (
-                "HTTP/1.1 500 Internal Server Error\r\n"
-                "Content-Type: text/plain\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("utf-8")
+        req.prepare(msg.decode("utf-8", errors="replace"), routes=self.routes)
+        response = b""
+        
+        if req.hook:
+            # Nhận diện thông minh: Hàm xử lý là Đồng bộ hay Bất đồng bộ?
             try:
-                conn.sendall(header + body)
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return
+                if inspect.iscoroutinefunction(req.hook):
+                    # Nếu là Coroutine, phải dùng 'await' để đợi kết quả
+                    response = await req.hook(req)
+                else:
+                    # Nếu là hàm thường, gọi chạy trực tiếp
+                    response = req.hook(req)
+            except Exception as e:
+                response = b"HTTP/1.1 500 Internal Server Error\r\n\r\n"
+        else:
+            response = resp.build_response(req)
 
-    # Tiện ích bóc tách rãnh rỗi và phân rã các cấu trúc Cookie truyền thống trong Header
+        # Bơm dữ liệu trả về mạng và xả luồng (drain)
+        writer.write(response)
+        await writer.drain()
+        writer.close()
+
     @property
     def extract_cookies(self, req, resp):
-        """Trích xuất và phân tích cookie từ header của request."""
+        """Trích xuất và tinh chế các thẻ Cookie từ đống hỗn độn của Headers."""
         cookies = {}
         cookie_header = req.headers.get("cookie", "")
         if cookie_header:
@@ -239,11 +248,9 @@ class HttpAdapter:
                     pass
         return cookies
 
-    # Cấu trúc đóng gói toàn văn phản hồi (Response) để sẵn sàng gửi trả lại hệ thống Client
     def build_response(self, req, resp):
-        """Xây dựng đối tượng Response từ request và raw response data."""
+        """Xây dựng khung xương (Skeleton) cho đối tượng Response."""
         response = Response()
-
         response.raw = resp
         response.reason = "OK"
 
@@ -255,28 +262,35 @@ class HttpAdapter:
         response.cookies = self.extract_cookies(req, resp)
         response.request = req
         response.connection = self
-
         return response
 
-    # Trụ chờ cung cấp tham số mở rộng cho các hệ thống Header bổ trợ linh hoạt
+    def build_json_response(self, req, resp):
+        """Khung xương chuyên dụng để trả về dữ liệu chuẩn JSON."""
+        response = Response(req)
+        response.raw = resp
+        if isinstance(req.url, bytes):
+            response.url = req.url.decode("utf-8")
+        else:
+            response.url = req.url
+
+        response.request = req
+        response.connection = self
+        return response
+
     def add_headers(self, request):
-        """Thêm header vào request (chưa hiện thực)."""
+        """Điểm gắn kết (Hook) cho phép nhà phát triển tiêm thêm Headers tùy chỉnh."""
         pass
 
-    # Xây dựng các nhóm Header đặc trưng nhằm định danh hệ thống qua cấu hình Server Proxy trung gian
     def build_proxy_headers(self, proxy):
-        """Xây dựng header xác thực cho request qua proxy.
-        Hiện tại sử dụng thông tin xác thực cứng – cần thay bằng Basic Auth thực sự.
+        """
+        Xây dựng vũ khí vượt tường lửa (Proxy-Authorization Headers)
+        khi hệ thống đóng vai trò là một Reverse Proxy.
         """
         headers = {}
-        username, password = ("user1", "password")  # Xác thực tạm thời (dummy)
+        # Thông tin xác thực ảo phục vụ cho Demo
+        username, password = ("user1", "password")
 
         if username:
-            # Cần chuẩn bị Basic Auth (base64 encode néu dùng thực tế)
-            # import base64
-            # auth_str = f"{username}:{password}"
-            # auth_b64 = base64.b64encode(auth_str.encode()).decode()
-            # headers["Proxy-Authorization"] = f"Basic {auth_b64}"
-            pass
+            headers["Proxy-Authorization"] = (username, password)
 
         return headers

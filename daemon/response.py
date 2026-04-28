@@ -1,9 +1,9 @@
 #
-# Copyright (C) 2025 pdnguyen of HCMC University of Technology VNU-HCM.
+# Copyright (C) 2026 pdnguyen of HCMC University of Technology VNU-HCM.
 # All rights reserved.
 # This file is part of the CO3093/CO3094 course.
 #
-# WeApRous release
+# AsynapRous release
 #
 # The authors hereby grant to Licensee personal permission to use
 # and modify the Licensed Source Code for the sole purpose of studying
@@ -14,27 +14,28 @@
 daemon.response
 ~~~~~~~~~~~~~~~~~
 
-Module này cung cấp lớp `Response` dùng để quản lý các thiết lập trả về của máy chủ HTTP (chẳng hạn như
-cookie, thông tin xác thực) và tự động đóng gói nội dung để gửi trả về cho Client.
-Hỗ trợ kiểm tra định dạng file (MIME type), truyền tải file HTML/CSS/JS tĩnh hoặc báo lỗi (401, 404, v.v.).
+Module này hoạt động như một "Xưởng Đóng Gói" (Response Builder) của hệ thống.
+Nhiệm vụ của nó là gom toàn bộ kết quả xử lý (File tĩnh, Dữ liệu JSON, Lỗi...),
+xác định đúng loại bao bì (MIME type), dán nhãn vận chuyển (HTTP Headers),
+và đóng gói thành một hộp hàng chuẩn chỉnh (HTTP Response) để gửi về cho khách hàng.
 """
-
 import datetime
-import json
 import os
+import json
 import mimetypes
 from .dictionary import CaseInsensitiveDict
 
-# Thiết lập BASE_DIR rỗng để biểu thị thư mục gốc của dự án.
-# Nơi start_backend.py được chạy.
-# Các thư mục con www/ và static/ sẽ được nối vào đây.
 BASE_DIR = ""
 
+class Response():   
+    """
+    Lớp :class:`Response <Response>` - Đại diện cho một "Gói Hàng" hoàn chỉnh.
 
-# Quản lý cấu trúc chuẩn hóa vòng đời gói tin tạo lập HTTP Response chuyên nghiệp
-class Response:
-    """Lớp :class:`Response <Response>`, đại diện cho
-    phản hồi của máy chủ HTTP khi có yêu cầu (Request) truyền tới.
+    Mỗi gói hàng này chứa đầy đủ thông tin:
+    - Nhãn dán (Headers): Báo cho trình duyệt biết bên trong là gì.
+    - Tem kiểm định (Status Code): Mã 200 (Thành công), 404 (Không tìm thấy)...
+    - Quà tặng kèm (Cookies): Dùng để ghi nhớ người dùng cho lần sau.
+    - Lõi sản phẩm (Body/Content): Hình ảnh, mã HTML, hoặc chuỗi JSON.
     """
 
     __attrs__ = [
@@ -54,281 +55,228 @@ class Response:
         "reason",
     ]
 
-    # Thiết lập nguyên mẫu đối tượng rỗng tích lũy phân mảng trả lời HTTP Server
     def __init__(self, request=None):
-        """
-        Khởi tạo một đối tượng :class:`Response <Response>` mới.
-
-        : tham số request : Đối tượng yêu cầu ban đầu.
-        """
-
-        self._content = b""  # Khởi tạo mặc định nội dung là kiểu bytes
+        """Tạo một Hộp Hàng rỗng, chuẩn bị cho quá trình đóng gói."""
+        self._content = b""
         self._content_consumed = False
         self._next = None
 
-        #: Mã trạng thái số nguyên HTTP trả về, ví dụ: 404 hoặc 200.
+        #: Mã trạng thái số nguyên (vd: 200, 401, 404, 500).
         self.status_code = None
-
-        #: Từ điển thẻ khai báo Response Headers không phân biệt hoa thường.
-        #: Ví dụ: ``headers['content-type']`` sẽ trả về
-        #: giá trị của cấu trúc tiêu đề ``'Content-Type'``.
+        #: Từ điển chứa các nhãn dán Headers.
         self.headers = {}
-
-        #: Vị trí URL gốc đính kèm với Response.
+        #: Đường dẫn URL của gói hàng.
         self.url = None
-
-        #: Loại mã hóa giải mã nội dung văn bản Response.
+        #: Bảng mã (Encoding) dùng để giải mã nội dung.
         self.encoding = None
-
-        #: Danh sách lưu trữ vòng đời đối tượng :class:`Response <Response>`
-        #: tính từ nhật ký của Request.
+        #: Nhật ký vòng đời gói hàng.
         self.history = []
-
-        #: Diễn giải nguyên nhân dạng khối văn bản của HTTP Status, ví dụ: "Not Found" hoặc "OK".
+        #: Chú thích bằng chữ cho mã trạng thái (vd: "OK", "Not Found").
         self.reason = None
-
-        #: Danh sách các Cookie thu nạp từ Headers của Response.
-        #: Bộ đệm lưu trữ danh sách Cookie cho Response headers.
-        # Khởi tạo CaseInsensitiveDict để đảm bảo tiêu chuẩn HTTP.
+        #: Giỏ chứa Cookies, được cấu trúc tự động để không phân biệt HOA/thường.
         self.cookies = CaseInsensitiveDict()
-
-        #: Tổng lượng thời gian xử lý tiêu tốn tính từ khoản khắc gửi yêu cầu
+        #: Thời gian tiêu tốn để chuẩn bị gói hàng này.
         self.elapsed = datetime.timedelta(0)
-
-        #: Tham chiếu chéo trực tiếp tới đối tượng :class:`PreparedRequest <PreparedRequest>`
-        #: mà Response này đang phản hồi.
+        #: Giữ lại bản sao tờ đơn yêu cầu (Request) ban đầu.
         self.request = None
 
-    # Truy xuất tính thống nhất phân loại (MIME) tương ứng đuôi mở rộng thư mục tham chiếu
     def get_mime_type(self, path):
-        """
-        Xác định định dạng tệp (MIME type) dựa trên đuôi của tệp.
-
-        :tham số path (str): Đường dẫn đến tệp.
-
-        :kiểu trả về str: Chuỗi loại MIME (ví dụ: 'text/html', 'image/png').
-        """
-
+        """Máy quét phân loại: Đoán xem file thuộc loại gì (MIME type) dựa vào đuôi mở rộng."""
         try:
             mime_type, _ = mimetypes.guess_type(path)
         except Exception:
-            return "application/octet-stream"
+            return 'application/octet-stream'
 
-        # Cập nhật xử lý chuyên dụng cho logo trang web (Favicon .ico)
+        # Xử lý đặc quyền cho Logo trang web (Favicon)
         if path.endswith(".ico"):
             return "image/x-icon"
 
-        return mime_type or "application/octet-stream"
+        return mime_type or 'application/octet-stream'
 
-    # Định đoạt đường dẫn cơ sở phân tầng ranh giới truy cập thông qua chuẩn MIME bảo mật
-    def prepare_content_type(self, mime_type="text/html"):
+    def prepare_content_type(self, mime_type='text/html'):
         """
-        Gắn thẻ loại nội dung (Content-Type header) và thiết lập
-        thư mục khởi gốc dùng để lấy file dựa trên loại MIME của nó.
-        """
+        Quyết định loại bao bì (Content-Type) và chọn Nhà kho (Base Directory).
 
+        Tùy thuộc vào việc khách yêu cầu loại hàng gì (HTML, CSS, Video, Ảnh), 
+        hệ thống sẽ tự động chuyển hướng tìm kiếm vào đúng khu vực nhà kho tương ứng.
+        """
         base_dir = ""
 
-        # Phân nhánh thư mục đích tùy thuộc vào phân loại MIME Type
+        if not hasattr(self, "headers") or self.headers is None:
+            self.headers = {}
 
-        # Đặt header Content-Type trước
-        self.headers["Content-Type"] = str(mime_type)
+        if '/' not in mime_type:
+            mime_type = 'application/octet-stream'
 
-        # Xác định thư mục dựa trên MIME type
-        if mime_type == "text/html":
-            base_dir = BASE_DIR + "www/"
-        elif mime_type == "text/css":
-            base_dir = BASE_DIR + "static/css"
-        elif mime_type == "text/javascript" or mime_type == "application/javascript": #thiếu khúc sau or
-            base_dir = BASE_DIR + "static/js"
-        elif mime_type.startswith("image/"):
-            base_dir = BASE_DIR + "static/"
-        elif mime_type.startswith("application/"):
-            # Dành cho các tệp ứng dụng (ví dụ: /login API trả về JSON)
-            # Nhưng logic đó đã được xử lý trong httpadapter.py
-            # Ở đây chúng ta giả định là file tĩnh
-            base_dir = BASE_DIR + "apps/"
+        main_type, sub_type = mime_type.split('/', 1)
+        print("[Response] Phân loại hàng hóa: Nhóm chính={} - Nhóm phụ={}".format(main_type, sub_type))
+        
+        if main_type == 'text':
+            self.headers['Content-Type']='text/{}'.format(sub_type)
+            if sub_type == 'plain':
+                base_dir = BASE_DIR+"static/"
+            elif sub_type == 'css':
+                base_dir = BASE_DIR+"static/css/" # Kho CSS
+            elif sub_type == 'html':
+                base_dir = BASE_DIR+"www/" # Kho Giao diện chính
+            else:
+                base_dir = BASE_DIR+"static/js/" # Kho Logic (JS)
+        elif main_type == 'image':
+            base_dir = BASE_DIR+"static/"
+            self.headers['Content-Type']='image/{}'.format(sub_type)
+        elif main_type == 'application':
+            if sub_type == 'javascript':
+                base_dir = BASE_DIR + "static/js/" 
+            else:
+                base_dir = BASE_DIR + "apps/"
+            self.headers['Content-Type']='application/{}'.format(sub_type)
+        # --- Bắt đầu giải quyết TODO: Xử lý đa phương tiện ---
+        elif main_type == 'video' or main_type == 'audio':
+            base_dir = BASE_DIR+"static/media/"
+            self.headers['Content-Type']= f'{main_type}/{sub_type}'
         else:
-            # Các loại file khác không được hỗ trợ
-            raise ValueError(f"Invalid MIME type: {mime_type}")
+            base_dir = BASE_DIR+"static/"
+            self.headers['Content-Type']= 'application/octet-stream'
+        # --- Kết thúc giải quyết TODO ---
 
-        print(f"[Response] processing MIME {mime_type} from base_dir {base_dir}")
         return base_dir
 
-    # Kéo tài liệu ổ cứng bọc kén an toàn từ chối thủ đoạn lợi dụng Directory Traversal
     def build_content(self, path, base_dir):
         """
-        Tải nội dung object file (HTML, CSS, JS...) từ ổ cứng lên máy chủ.
+        Quy trình "Lấy hàng từ kho" (Đọc file) kiêm "Trạm kiểm soát An ninh".
+
+        Kỹ thuật bảo mật: Để phòng ngừa Hacker cố tình truyền vào các đường dẫn ma 
+        (Ví dụ: `../../../../etc/passwd`) nhằm ăn cắp thông tin nhạy cảm của máy chủ
+        (Lỗ hổng Directory Traversal), hệ thống sẽ tính toán đường dẫn thực (realpath) 
+        để đảm bảo không có ai được phép thò tay ra khỏi nhà kho được cấp phép.
         """
+        rel_path = path.lstrip('/')
+        filepath = os.path.join(base_dir, rel_path)
 
-        # filepath = os.path.join(base_dir, path.lstrip('/'))
-        # Lược bỏ dấu / ở đầu path
-        rel_path = path.lstrip("/")
+        print("[Response] Đang lấy hàng tại kho: {}".format(filepath))
+        
+        # --- Bắt đầu giải quyết TODO: Đọc file an toàn ---
+        try:
+            # Thuật toán chống Directory Traversal (Chống leo thang thư mục)
+            base_real = os.path.realpath(base_dir)
+            target_real = os.path.realpath(filepath)
+            
+            # Nếu tọa độ cuối cùng không nằm gọn trong Nhà kho (base_real), lập tức từ chối!
+            if not os.path.commonpath([base_real]) == os.path.commonpath([base_real, target_real]):
+                raise IOError("Xâm nhập trái phép: Cố gắng truy cập ngoài thư mục an toàn")
 
-        # Tạo đường dẫn mục tiêu và chuẩn hóa
-        target = os.path.join(base_dir, rel_path)
-
-        # Biện pháp bảo mật: Chặn khai thác lùi thư mục (Directory Traversal) bằng realpath/commonpath
-        base_real = os.path.realpath(base_dir)
-        target_real = os.path.realpath(target)
-
-        # Nếu target không nằm trong base -> từ chối
-
-        # Đảm bảo đường dẫn là an toàn (không đi ngược thư mục)
-        # if '..' in filepath:
-        if not os.path.commonpath([base_real]) == os.path.commonpath(
-            [base_real, target_real]
-        ):
-            # Không cho phép truy cập ra ngoài base_dir
-            raise IOError("File path is not allowed")
-
-        # print("[Response] serving the object at location {}".format(filepath))
-        print("[Response] serving the object at location {}".format(target_real))
-
-        # Thực hiện đọc dữ liệu nhị phân từ ổ đĩa lưu trữ
-        content = b""
-        # Mở tệp ở chế độ 'rb' (read binary) vì chúng ta cần gửi bytes
-        with open(target_real, "rb") as f:
-            content = f.read()
-
+            # Đọc tệp ở chế độ Binary (Nhi phân) để giữ nguyên vẹn mọi cấu trúc hình ảnh/chữ
+            with open(target_real, "rb") as f:
+               content = f.read()
+        except Exception as e:
+            print("[Response] Lỗi quá trình lấy hàng: {}".format(e))
+            return -1, b""
+        # --- Kết thúc giải quyết TODO ---
+        
         return len(content), content
 
-    # Lắp ghép băng chuyền Headers tuân thủ triệt để khung luật diễn đạt của HTTP
     def build_response_header(self, request):
-        """Xây dựng bộ thẻ khai báo (HTTP response headers) chi tiết dựa vào đối tượng bản tin Client (request)."""
+        """
+        Máy in Tem Nhãn (Header Builder).
+        Sản xuất đoạn văn bản tuân thủ nghiêm ngặt theo chuẩn Giao thức HTTP/1.1.
+        """
+        reqhdr = request.headers if request and hasattr(request, 'headers') and request.headers else {}
 
-        # Quy trình cấu trúc hệ thống Headers:
+        # Tem nhãn động: Ghi chú đầy đủ dung lượng, ngày tháng, và chứng chỉ bảo mật
+        dynamic_headers = {
+                "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
+                "Accept-Language": "{}".format(reqhdr.get("Accept-Language", "en-US,en;q=0.9")),
+                "Authorization": "{}".format(reqhdr.get("Authorization", "Basic <credentials>")),
+                "Cache-Control": "no-cache",
+                "Content-Type": "{}".format(self.headers.get('Content-Type', 'text/html')),
+                "Content-Length": "{}".format(len(self._content) if isinstance(self._content, bytes) else 0),
+                "Date": "{}".format(datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")),
+                "Max-Forward": "10",
+                "Pragma": "no-cache",
+                "Proxy-Authorization": "Basic dXNlcjpwYXNz",  
+                "Warning": "199 Miscellaneous warning",
+                "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
+                "Server": "AsynapRous-Server (Python)"
+            }
 
-        # 1. Tạo dòng trạng thái (Status Line)
-        status_line = f"HTTP/1.1 {self.status_code} {self.reason}\r\n"
-
-        # 2. Thêm các header từ self.headers (đã được đặt ở các hàm khác)
+        # --- Bắt đầu giải quyết TODO: Cấu trúc khuôn dạng Header ---
+        status_line = f"HTTP/1.1 {self.status_code or 200} {self.reason or 'OK'}\r\n"
+        
         header_lines = []
-
-        # Thêm header 'Date'
-        self.headers["Date"] = datetime.datetime.utcnow().strftime(
-            "%a, %d %b %Y %H:%M:%S GMT"
-        )
-        self.headers["Server"] = "BKSysNet-Server (Python)"
-
-        for key, value in self.headers.items():
+        for key, value in dynamic_headers.items():
             header_lines.append(f"{key}: {value}")
-
-        # 3. Thêm các cookie (Rất quan trọng cho Task 2.1)
+        
+        # Ép các thẻ Cookie lên nhãn dán
         for key, value in self.cookies.items():
-            # Ví dụ: Set-Cookie: auth=true
             header_lines.append(f"Set-Cookie: {key}={value}")
 
-        # 4. Ghép tất cả lại
-        # Nối các dòng header bằng \r\n, và kết thúc bằng một dòng trống \r\n
+        # Ghép tất cả lại, dập dấu '\r\n\r\n' để báo hiệu kết thúc phần Tem Nhãn
         fmt_header = status_line + "\r\n".join(header_lines) + "\r\n\r\n"
+        # --- Kết thúc giải quyết TODO ---
 
-        return fmt_header.encode("utf-8")
+        return str(fmt_header).encode('utf-8')
 
-    # Đóng gói bộ đệm thông báo mã 404 chống cạn kiệt tài nguyên logic
     def build_notfound(self):
-        """
-        Đóng gói một thông báo lỗi HTTP 404 Not Found tiêu chuẩn.
-        """
-
+        """Khung mẫu đóng gói báo lỗi 404 Not Found (Không tìm thấy món hàng)."""
         return (
-            "HTTP/1.1 404 Not Found\r\n"
-            "Accept-Ranges: bytes\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: 13\r\n"
-            "Cache-Control: max-age=86000\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "404 Not Found"
-        ).encode("utf-8")
+                "HTTP/1.1 404 Not Found\r\n"
+                "Accept-Ranges: bytes\r\n"
+                "Content-Type: text/html\r\n"
+                "Content-Length: 13\r\n"
+                "Cache-Control: max-age=86000\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+                "404 Not Found"
+            ).encode('utf-8')
 
-    # Triển khai bộ đệm thành công mã 200 tích hợp phân vùng dữ liệu động chuẩn JSON
-    def build_success(self, body):
-        # self.status = 200
-        # self.headers = {"Content-Type": "application/json"}
-        json_body = json.dumps(body)
-        content_length = len(json_body.encode("utf-8"))
-
-        return (
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            f"Content-Length: {content_length}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            f"{json_body}"
-        ).encode("utf-8")
-
-    # Triển khai bộ đệm lỗi truy cập mã 400 chặn đứng yêu cầu tồi vượt rào
-    def build_bad_request(self, body):
-        json_body = json.dumps(body)
-        content_length = len(json_body.encode("utf-8"))
-        return (
-            "HTTP/1.1 400 Bad Request\r\n"
-            "Content-Type: application/json\r\n"
-            f"Content-Length: {content_length}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            f"{json_body}"
-        ).encode("utf-8")
-
-    # Triển khai bộ đệm chấn thương hệ thống mã 500 duy trì Server giữ vững sinh lộ vòng lặp
-    def build_internal_error(self, body):
-        json_body = json.dumps(body)
-        content_length = len(json_body.encode("utf-8"))
-        return (
-            "HTTP/1.1 500 Internal Server Error\r\n"
-            "Content-Type: application/json\r\n"
-            f"Content-Length: {content_length}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            f"{json_body}"
-        ).encode("utf-8")
-
-    # Mắt xích cuối tổng hòa quy trình kết xuất mảng Header tĩnh và Content thành luồng Byte
-    def build_response(self, request):
+    def build_response(self, request, envelop_content=None):
         """
-        Lắp ráp gói HTTP Response đầy đủ cuối cùng, bao gồm cả Headers lẫn Payload (Content).
+        Dây Chuyền Đóng Gói Cuối Cùng.
+        Hàm này ra lệnh vận hành toàn bộ quy trình: Tìm kho -> Lấy hàng -> In tem -> Trả về kết quả.
         """
-
-        path = request.path
+        print("[Response] Khởi chạy dây chuyền đóng gói cho: {}".format(request))
+        path = getattr(request, 'path', '/index.html')
         mime_type = self.get_mime_type(path)
-        print(
-            "[Response] {} path {} mime_type {}".format(
-                request.method, request.path, mime_type
-            )
-        )
 
         base_dir = ""
-        c_len = 0
 
-        # Khối Block thực thi chính: Đọc, đóng gói và kiểm soát Ngoại Lệ (Exception)
-        try:
-            # 1. Chuẩn bị content-type và thư mục
-            base_dir = self.prepare_content_type(mime_type)
-
-            # 2. Tải nội dung tệp
-            c_len, self._content = self.build_content(path, base_dir)
-
-            # 3. Nếu thành công, đặt status 200 OK
-            self.status_code = 200
-            self.reason = "OK"
-            self.headers["Content-Length"] = c_len
-            self.headers["Connection"] = "close"  # Đóng kết nối sau khi gửi
-
-        except (IOError, FileNotFoundError, ValueError) as e:
-            # 4. Nếu có lỗi (Không tìm thấy tệp, MIME không hỗ trợ)
-            print(f"[Response] Error serving file {path}: {e}")
+        # --- Bắt đầu giải quyết TODO: Xác định lộ trình lấy hàng ---
+        if path.endswith('.html') or mime_type == 'text/html':
+            base_dir = self.prepare_content_type(mime_type = 'text/html')
+        elif mime_type == 'text/css':
+            base_dir = self.prepare_content_type(mime_type = 'text/css')
+        elif mime_type == 'text/javascript' or mime_type == 'application/javascript':
+            base_dir = self.prepare_content_type(mime_type = mime_type)
+        elif mime_type.startswith('image/'):
+            base_dir = self.prepare_content_type(mime_type = mime_type)
+        elif mime_type == 'application/json' or mime_type == 'application/octet-stream':
+            base_dir = self.prepare_content_type(mime_type = 'application/json')
+            envelop_content = ""
+        else:
+            # Mặt hàng không được siêu thị hỗ trợ
             return self.build_notfound()
 
-        # 5. Xây dựng header
+        # Thực hiện móc hàng từ kho lên xe
+        c_len, self._content = self.build_content(path, base_dir)
+        if c_len < 0:
+            return self.build_notfound()
+
+        self.status_code = 200
+        self.reason = "OK"
+        # --- Kết thúc giải quyết TODO ---
+
+        # Dán tem Header
         self._header = self.build_response_header(request)
 
-        # 6. Trả về header + nội dung
+        # Hợp nhất: Trả về [Tem Nhãn] + [Hàng Hóa]
         return self._header + self._content
 
-    # Củng cố rào cản từ chối cấp quyền truy cập với tín hiệu khước từ định mức 401
+    # ==============================================================================
+    # CÁC KỊCH BẢN ĐÓNG GÓI ĐẶC BIỆT DÀNH CHO API CỦA WEB CHAT P2P
+    # ==============================================================================
+
     def build_unauthorized(self):
-        """Xây dựng phản hồi báo lỗi xác thực không được trao quyền."""
+        """Đuổi khách: Báo lỗi 401 Unauthorized khi phát hiện chưa mua vé (Đăng nhập)."""
         self.status_code = 401
         self.reason = "Unauthorized"
         content = b"401 Unauthorized"
@@ -340,20 +288,50 @@ class Response:
             "Connection: close\r\n"
             "\r\n"
         )
-
         return headers.encode("utf-8") + content
 
-    # Xác thực chuỗi phiên hệ thống, cấp thẻ Cookie chứng nhận, định hướng Landing
     def build_login_success(self, request):
-        """Quản trị thủ tục tái điều hướng giao diện tĩnh kèm đánh dấu Phiên đăng nhập hợp thức hóa."""
-
-        # 1. Đặt thông số ghi chú phiên xác thực
+        """Đóng dấu Thẻ VIP (Cookie auth=true) và dắt khách về sảnh chính (index.html)."""
         self.cookies["auth"] = "true; Path=/"
-        # 2. Điều hướng biến đổi thông số yêu cầu nguyên thủy
         request.path = "/index.html"
         request.method = "GET"
-
-        # 3. Gọi hàm build_response thông thường
-        # Hàm này sẽ đọc path mới, lấy tệp index.html
-        # và build_response_header sẽ đọc cookie chúng ta vừa set
         return self.build_response(request)
+
+    def build_success(self, body):
+        """Phục vụ bữa tiệc 200 OK với cấu trúc dữ liệu JSON thuần túy."""
+        json_body = json.dumps(body)
+        content_length = len(json_body.encode("utf-8"))
+        return (
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {content_length}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            f"{json_body}"
+        ).encode("utf-8")
+
+    def build_bad_request(self, body):
+        """Từ chối phục vụ (400 Bad Request) do khách hàng điền sai mẫu đơn."""
+        json_body = json.dumps(body)
+        content_length = len(json_body.encode("utf-8"))
+        return (
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {content_length}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            f"{json_body}"
+        ).encode("utf-8")
+
+    def build_internal_error(self, body):
+        """Báo động đỏ (500 Internal Error) do nhà bếp tự cháy, không liên quan khách hàng."""
+        json_body = json.dumps(body)
+        content_length = len(json_body.encode("utf-8"))
+        return (
+            "HTTP/1.1 500 Internal Server Error\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {content_length}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            f"{json_body}"
+        ).encode("utf-8")
