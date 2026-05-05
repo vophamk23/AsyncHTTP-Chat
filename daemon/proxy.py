@@ -150,8 +150,7 @@ def handle_client(ip, port, conn, addr, routes):
     :params addr (tuple): Địa chỉ client (IP, port).
     :params routes (dict): Bảng định tuyến ánh xạ hostname tới đích.
     """
-
-    request = conn.recv(1024).decode()
+    request = conn.recv(4096).decode()
     hostname = ""
     # Trích xuất hostname
     for line in request.splitlines():

@@ -143,7 +143,7 @@ def submit_form(req):
     unauth = require_auth(req)
     if unauth:
         return unauth
-        
+
     try:
         req.path = "/submit.html"
         return Response().build_response(req)
@@ -168,7 +168,7 @@ def submit_info(req):
     unauth = require_auth(req)
     if unauth:
         return unauth
-        
+
     try:
         body = req.body
         if body.strip().startswith("{"):
@@ -223,7 +223,7 @@ def logout(req):
         if peer_id and peer_id in peer_list:
             del peer_list[peer_id]
             print(f"[ChatServer] Peer đã rời mạng: {peer_id}")
-        
+
         return Response().build_success({"status": "success"})
     except Exception as e:
         return Response().build_internal_error({"status": "error", "message": str(e)})
@@ -332,9 +332,26 @@ if __name__ == "__main__":
         help=f"Cổng lắng nghe. Mặc định: {PORT}.",
     )
 
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["threading", "callback", "coroutine"],
+        default="threading",
+        # Chọn cơ chế xử lý đồng thời:
+        #   threading  – Mỗi client 1 luồng riêng (mặc định, dễ dùng)
+        #   callback   – Hướng sự kiện dùng Selector, tiết kiệm RAM
+        #   coroutine  – Async/Await hiện đại, hiệu năng cao nhất
+        help="Chế độ non-blocking. Mặc định: threading",
+    )
+
     args = parser.parse_args()
     ip = args.server_ip
     port = args.server_port
+
+    # Ghi đè chế độ non-blocking vào backend trước khi server khởi động
+    import daemon.backend as backend
+
+    backend.mode_async = args.mode
 
     print(f"[ChatServer] Đang khởi chạy máy chủ tracker tại http://{ip}:{port}")
     app.prepare_address(ip, port)

@@ -193,6 +193,7 @@ def require_auth(req):
         return None  # Đã xác thực, cho phép tiếp tục
     # Chưa đăng nhập → đọc tracker.json để lấy địa chỉ trang login
     import os, json as _json
+
     tracker_ip, tracker_port = "localhost", 8001
     if os.path.exists("tracker.json"):
         try:
@@ -362,7 +363,7 @@ async def send_to_peer_async(ip, port, payload):
     try:
         # Mở kết nối TCP chuẩn bị bắn data (Non-blocking)
         reader, writer = await asyncio.open_connection(ip, int(port))
-        
+
         # Đóng gói dữ liệu thành chuẩn HTTP/1.1
         body = json.dumps(payload)
         http_request = (
@@ -373,18 +374,19 @@ async def send_to_peer_async(ip, port, payload):
             f"Connection: close\r\n\r\n"
             f"{body}"
         )
-        
+
         # Đẩy dữ liệu ra luồng mạng
-        writer.write(http_request.encode('utf-8'))
-        await writer.drain() # Đợi đẩy xong mà không treo CPU
-        
+        writer.write(http_request.encode("utf-8"))
+        await writer.drain()  # Đợi đẩy xong mà không treo CPU
+
         # Đóng gọn gàng
         writer.close()
         await writer.wait_closed()
         print(f"[P2P Async] Đã gửi tin nhắn ngầm tới {ip}:{port}")
-        
+
     except Exception as e:
         print(f"[P2P Async Error] Lỗi khi gửi tới {ip}:{port} - {e}")
+
 
 # --- ENDPOINT: Gửi tin nhắn P2P ---
 @app.route("/send-message", methods=["POST"])
@@ -396,13 +398,13 @@ def send_message(req):
     2. Gọi luồng Asyncio để bắn request sang nhà người kia.
     """
     data = json.loads(req.body)
-    
+
     receiver = data.get("receiver")
     ip = data.get("ip")
     port = data.get("port")
     message = data.get("message")
     time_stamp = data.get("time_stamp")
-    
+
     # 1. Lưu tin nhắn vào local memory để render lên màn hình của mình
     chat_messages.setdefault(receiver, []).append(
         {"sender": "Me", "message": message, "time_stamp": time_stamp}
@@ -411,12 +413,8 @@ def send_message(req):
 
     # 2. Chuẩn bị gói hàng để gửi sang máy bên kia
     sender_name = req.cookies.get("username", "Unknown") if req.cookies else "Unknown"
-    payload = {
-        "sender": sender_name, 
-        "message": message, 
-        "time_stamp": time_stamp
-    }
-    
+    payload = {"sender": sender_name, "message": message, "time_stamp": time_stamp}
+
     # 3. Kích hoạt luồng gửi mạng bất đồng bộ (Không đợi gửi xong mới báo thành công)
     if ip and port:
         try:
@@ -430,6 +428,7 @@ def send_message(req):
     return Response().build_success(
         {"status": "ok", "message": f"Message sent to {receiver} at {time_stamp}"}
     )
+
 
 # Endpoint cập nhật vào lịch sử nội bộ một tin nhắn mà hệ thống tự động phát đi
 # @app.route("/send-message", methods=["POST"])
@@ -524,9 +523,9 @@ def chat_style(req):
     """[Tài khoản Tĩnh] Cho phép Web Load file Javascript để chạy Polling real-time."""
     try:
         resp = Response()
+        resp.headers = {"Content-Type": "application/javascript"}  # có set Content-Type
         return resp.build_response(req)
     except Exception as e:
-        print("Unexpected error:", e)
         return Response().build_internal_error({"message": str(e)})
 
 
@@ -603,10 +602,25 @@ if __name__ == "__main__":
         help=f"Cổng lắng nghe. Mặc định: {PORT}.",
     )
 
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["threading", "callback", "coroutine"],
+        default="threading",
+        help="Chế độ non-blocking. Mặc định: threading",
+    )
+
     args = parser.parse_args()
     ip = args.server_ip
     port = args.server_port
 
-    print(f"[ChatServer] Đang khởi chạy peer server tại http://{ip}:{port}")
+    # Ghi đè chế độ vào backend
+    import daemon.backend as backend
+
+    backend.mode_async = args.mode
+
+    print(
+        f"[ChatServer] Đang khởi chạy peer server ({args.mode}) tại http://{ip}:{port}"
+    )
     app.prepare_address(ip, port)
     app.run()

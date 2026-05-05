@@ -19,6 +19,7 @@ Nhiệm vụ của nó là gom toàn bộ kết quả xử lý (File tĩnh, Dữ
 xác định đúng loại bao bì (MIME type), dán nhãn vận chuyển (HTTP Headers),
 và đóng gói thành một hộp hàng chuẩn chỉnh (HTTP Response) để gửi về cho khách hàng.
 """
+
 import datetime
 import os
 import json
@@ -27,7 +28,8 @@ from .dictionary import CaseInsensitiveDict
 
 BASE_DIR = ""
 
-class Response():   
+
+class Response:
     """
     Lớp :class:`Response <Response>` - Đại diện cho một "Gói Hàng" hoàn chỉnh.
 
@@ -85,19 +87,19 @@ class Response():
         try:
             mime_type, _ = mimetypes.guess_type(path)
         except Exception:
-            return 'application/octet-stream'
+            return "application/octet-stream"
 
         # Xử lý đặc quyền cho Logo trang web (Favicon)
         if path.endswith(".ico"):
             return "image/x-icon"
 
-        return mime_type or 'application/octet-stream'
+        return mime_type or "application/octet-stream"
 
-    def prepare_content_type(self, mime_type='text/html'):
+    def prepare_content_type(self, mime_type="text/html"):
         """
         Quyết định loại bao bì (Content-Type) và chọn Nhà kho (Base Directory).
 
-        Tùy thuộc vào việc khách yêu cầu loại hàng gì (HTML, CSS, Video, Ảnh), 
+        Tùy thuộc vào việc khách yêu cầu loại hàng gì (HTML, CSS, Video, Ảnh),
         hệ thống sẽ tự động chuyển hướng tìm kiếm vào đúng khu vực nhà kho tương ứng.
         """
         base_dir = ""
@@ -105,35 +107,42 @@ class Response():
         if not hasattr(self, "headers") or self.headers is None:
             self.headers = {}
 
-        if '/' not in mime_type:
-            mime_type = 'application/octet-stream'
+        if "/" not in mime_type:
+            mime_type = "application/octet-stream"
 
-        main_type, sub_type = mime_type.split('/', 1)
-        print("[Response] Phân loại hàng hóa: Nhóm chính={} - Nhóm phụ={}".format(main_type, sub_type))
-        
-        if main_type == 'text':
-            self.headers['Content-Type']='text/{}'.format(sub_type)
-            if sub_type == 'plain':
-                base_dir = BASE_DIR+"static/"
-            elif sub_type == 'css':
-                base_dir = BASE_DIR+"static/css/" # Kho CSS
-            elif sub_type == 'html':
-                base_dir = BASE_DIR+"www/" # Kho Giao diện chính
+        main_type, sub_type = mime_type.split("/", 1)
+        print(
+            "[Response] Phân loại hàng hóa: Nhóm chính={} - Nhóm phụ={}".format(
+                main_type, sub_type
+            )
+        )
+
+        if main_type == "text":
+            self.headers["Content-Type"] = "text/{}".format(sub_type)
+            if sub_type == "plain":
+                base_dir = BASE_DIR + "static/"
+            elif sub_type == "css":
+                base_dir = BASE_DIR + "static/css/"  # Kho CSS
+            elif sub_type == "html":
+                base_dir = BASE_DIR + "www/"  # Kho Giao diện chính
             else:
-                base_dir = BASE_DIR+"static/js/" # Kho Logic (JS)
-        elif main_type == 'image':
-            base_dir = BASE_DIR+"static/"
-            self.headers['Content-Type']='image/{}'.format(sub_type)
-        elif main_type == 'application':
-            base_dir = BASE_DIR+"apps/"
-            self.headers['Content-Type']='application/{}'.format(sub_type)
+                base_dir = BASE_DIR + "static/js/"  # Kho Logic (JS)
+        elif main_type == "image":
+            base_dir = BASE_DIR + "static/"
+            self.headers["Content-Type"] = "image/{}".format(sub_type)
+        elif main_type == "application":
+            if sub_type == "javascript":
+                base_dir = BASE_DIR + "static/js/"
+            else:
+                base_dir = BASE_DIR + "apps/"
+            self.headers["Content-Type"] = "application/{}".format(sub_type)
         # --- Bắt đầu giải quyết TODO: Xử lý đa phương tiện ---
-        elif main_type == 'video' or main_type == 'audio':
-            base_dir = BASE_DIR+"static/media/"
-            self.headers['Content-Type']= f'{main_type}/{sub_type}'
+        elif main_type == "video" or main_type == "audio":
+            base_dir = BASE_DIR + "static/media/"
+            self.headers["Content-Type"] = f"{main_type}/{sub_type}"
         else:
-            base_dir = BASE_DIR+"static/"
-            self.headers['Content-Type']= 'application/octet-stream'
+            base_dir = BASE_DIR + "static/"
+            self.headers["Content-Type"] = "application/octet-stream"
         # --- Kết thúc giải quyết TODO ---
 
         return base_dir
@@ -142,34 +151,38 @@ class Response():
         """
         Quy trình "Lấy hàng từ kho" (Đọc file) kiêm "Trạm kiểm soát An ninh".
 
-        Kỹ thuật bảo mật: Để phòng ngừa Hacker cố tình truyền vào các đường dẫn ma 
+        Kỹ thuật bảo mật: Để phòng ngừa Hacker cố tình truyền vào các đường dẫn ma
         (Ví dụ: `../../../../etc/passwd`) nhằm ăn cắp thông tin nhạy cảm của máy chủ
-        (Lỗ hổng Directory Traversal), hệ thống sẽ tính toán đường dẫn thực (realpath) 
+        (Lỗ hổng Directory Traversal), hệ thống sẽ tính toán đường dẫn thực (realpath)
         để đảm bảo không có ai được phép thò tay ra khỏi nhà kho được cấp phép.
         """
-        rel_path = path.lstrip('/')
+        rel_path = path.lstrip("/")
         filepath = os.path.join(base_dir, rel_path)
 
         print("[Response] Đang lấy hàng tại kho: {}".format(filepath))
-        
+
         # --- Bắt đầu giải quyết TODO: Đọc file an toàn ---
         try:
             # Thuật toán chống Directory Traversal (Chống leo thang thư mục)
             base_real = os.path.realpath(base_dir)
             target_real = os.path.realpath(filepath)
-            
+
             # Nếu tọa độ cuối cùng không nằm gọn trong Nhà kho (base_real), lập tức từ chối!
-            if not os.path.commonpath([base_real]) == os.path.commonpath([base_real, target_real]):
-                raise IOError("Xâm nhập trái phép: Cố gắng truy cập ngoài thư mục an toàn")
+            if not os.path.commonpath([base_real]) == os.path.commonpath(
+                [base_real, target_real]
+            ):
+                raise IOError(
+                    "Xâm nhập trái phép: Cố gắng truy cập ngoài thư mục an toàn"
+                )
 
             # Đọc tệp ở chế độ Binary (Nhi phân) để giữ nguyên vẹn mọi cấu trúc hình ảnh/chữ
             with open(target_real, "rb") as f:
-               content = f.read()
+                content = f.read()
         except Exception as e:
             print("[Response] Lỗi quá trình lấy hàng: {}".format(e))
             return -1, b""
         # --- Kết thúc giải quyết TODO ---
-        
+
         return len(content), content
 
     def build_response_header(self, request):
@@ -177,32 +190,44 @@ class Response():
         Máy in Tem Nhãn (Header Builder).
         Sản xuất đoạn văn bản tuân thủ nghiêm ngặt theo chuẩn Giao thức HTTP/1.1.
         """
-        reqhdr = request.headers if request and hasattr(request, 'headers') and request.headers else {}
+        reqhdr = (
+            request.headers
+            if request and hasattr(request, "headers") and request.headers
+            else {}
+        )
 
         # Tem nhãn động: Ghi chú đầy đủ dung lượng, ngày tháng, và chứng chỉ bảo mật
         dynamic_headers = {
-                "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
-                "Accept-Language": "{}".format(reqhdr.get("Accept-Language", "en-US,en;q=0.9")),
-                "Authorization": "{}".format(reqhdr.get("Authorization", "Basic <credentials>")),
-                "Cache-Control": "no-cache",
-                "Content-Type": "{}".format(self.headers.get('Content-Type', 'text/html')),
-                "Content-Length": "{}".format(len(self._content) if isinstance(self._content, bytes) else 0),
-                "Date": "{}".format(datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")),
-                "Max-Forward": "10",
-                "Pragma": "no-cache",
-                "Proxy-Authorization": "Basic dXNlcjpwYXNz",  
-                "Warning": "199 Miscellaneous warning",
-                "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
-                "Server": "AsynapRous-Server (Python)"
-            }
+            "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
+            "Accept-Language": "{}".format(
+                reqhdr.get("Accept-Language", "en-US,en;q=0.9")
+            ),
+            "Authorization": "{}".format(
+                reqhdr.get("Authorization", "Basic <credentials>")
+            ),
+            "Cache-Control": "no-cache",
+            "Content-Type": "{}".format(self.headers.get("Content-Type", "text/html")),
+            "Content-Length": "{}".format(
+                len(self._content) if isinstance(self._content, bytes) else 0
+            ),
+            "Date": "{}".format(
+                datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
+            ),
+            "Max-Forward": "10",
+            "Pragma": "no-cache",
+            "Proxy-Authorization": "Basic dXNlcjpwYXNz",
+            "Warning": "199 Miscellaneous warning",
+            "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
+            "Server": "AsynapRous-Server (Python)",
+        }
 
         # --- Bắt đầu giải quyết TODO: Cấu trúc khuôn dạng Header ---
         status_line = f"HTTP/1.1 {self.status_code or 200} {self.reason or 'OK'}\r\n"
-        
+
         header_lines = []
         for key, value in dynamic_headers.items():
             header_lines.append(f"{key}: {value}")
-        
+
         # Ép các thẻ Cookie lên nhãn dán
         for key, value in self.cookies.items():
             header_lines.append(f"Set-Cookie: {key}={value}")
@@ -211,20 +236,20 @@ class Response():
         fmt_header = status_line + "\r\n".join(header_lines) + "\r\n\r\n"
         # --- Kết thúc giải quyết TODO ---
 
-        return str(fmt_header).encode('utf-8')
+        return str(fmt_header).encode("utf-8")
 
     def build_notfound(self):
         """Khung mẫu đóng gói báo lỗi 404 Not Found (Không tìm thấy món hàng)."""
         return (
-                "HTTP/1.1 404 Not Found\r\n"
-                "Accept-Ranges: bytes\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 13\r\n"
-                "Cache-Control: max-age=86000\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "404 Not Found"
-            ).encode('utf-8')
+            "HTTP/1.1 404 Not Found\r\n"
+            "Accept-Ranges: bytes\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 13\r\n"
+            "Cache-Control: max-age=86000\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "404 Not Found"
+        ).encode("utf-8")
 
     def build_response(self, request, envelop_content=None):
         """
@@ -232,22 +257,22 @@ class Response():
         Hàm này ra lệnh vận hành toàn bộ quy trình: Tìm kho -> Lấy hàng -> In tem -> Trả về kết quả.
         """
         print("[Response] Khởi chạy dây chuyền đóng gói cho: {}".format(request))
-        path = getattr(request, 'path', '/index.html')
+        path = getattr(request, "path", "/index.html")
         mime_type = self.get_mime_type(path)
 
         base_dir = ""
 
         # --- Bắt đầu giải quyết TODO: Xác định lộ trình lấy hàng ---
-        if path.endswith('.html') or mime_type == 'text/html':
-            base_dir = self.prepare_content_type(mime_type = 'text/html')
-        elif mime_type == 'text/css':
-            base_dir = self.prepare_content_type(mime_type = 'text/css')
-        elif mime_type == 'text/javascript' or mime_type == 'application/javascript':
-            base_dir = self.prepare_content_type(mime_type = mime_type)
-        elif mime_type.startswith('image/'):
-            base_dir = self.prepare_content_type(mime_type = mime_type)
-        elif mime_type == 'application/json' or mime_type == 'application/octet-stream':
-            base_dir = self.prepare_content_type(mime_type = 'application/json')
+        if path.endswith(".html") or mime_type == "text/html":
+            base_dir = self.prepare_content_type(mime_type="text/html")
+        elif mime_type == "text/css":
+            base_dir = self.prepare_content_type(mime_type="text/css")
+        elif mime_type == "text/javascript" or mime_type == "application/javascript":
+            base_dir = self.prepare_content_type(mime_type=mime_type)
+        elif mime_type.startswith("image/"):
+            base_dir = self.prepare_content_type(mime_type=mime_type)
+        elif mime_type == "application/json" or mime_type == "application/octet-stream":
+            base_dir = self.prepare_content_type(mime_type="application/json")
             envelop_content = ""
         else:
             # Mặt hàng không được siêu thị hỗ trợ

@@ -77,42 +77,36 @@ def handle_client_callback(server, ip, port, conn, addr, routes):
     daemon = HttpAdapter(ip, port, conn, addr, routes)
     daemon.handle_client(conn, addr, routes)
 
-
-async def handle_client_coroutine(reader, writer):
-    """
-    Quy trình tiếp đón Client dành cho mô hình Bất đồng bộ (Coroutine/Asyncio).
-    
-    Sử dụng luồng đọc/ghi (Stream Reader/Writer) thay cho Socket thô cứng. 
-    Lệnh `await` giúp hệ thống tạm gác công việc hiện tại để đi đón khách khác
-    trong lúc chờ dữ liệu tải về, tối đa hóa hiệu suất CPU.
-
-    :param reader (StreamReader): Luồng hứng dữ liệu từ Client.
-    :param writer (StreamWriter): Luồng bơm dữ liệu trả về cho Client.
-    """
-    addr = writer.get_extra_info("peername")
-    print("[Backend] Bất đồng bộ (Coroutine) - Đang phục vụ luồng từ {}".format(addr))
-
-    while True:
-        # Nhờ HttpAdapter xử lý luồng dữ liệu (Stream) theo kiểu Async
-        daemon = HttpAdapter(None, None, None, None, None)
-        await daemon.handle_client_coroutine(reader, writer)
-
 async def async_server(ip="0.0.0.0", port=7000, routes={}):
     """
     Máy chủ chuyên dụng cho mô hình Coroutine (Asyncio).
     Xây dựng hoàn toàn trên nền tảng asyncio của Python.
     """
-    print("[Backend] Máy chủ Async đang rình rập trên cổng {}".format(port))
+    print("[Backend] Máy chủ Async đang chạy trên cổng {}".format(port))
     if routes != {}:
         print("[Backend] Danh sách định tuyến đang hoạt động:")
         for key, value in routes.items():
             isCoFunc = "**ASYNC** " if inspect.iscoroutinefunction(value) else ""
             print("   + ('{}', '{}'): {}{}".format(key[0], key[1], isCoFunc, str(value)))
 
-    async_server_instance = await asyncio.start_server(handle_client_coroutine, ip, port)
+    # Tạo một hàm bọc (wrapper) ở bên trong để "nhốt" được biến routes
+    async def client_handler(reader, writer):
+        addr = writer.get_extra_info("peername")
+        print("[Backend] Bất đồng bộ (Coroutine) - Đang phục vụ luồng từ {}".format(addr))
+        try:
+            # TRUYỀN ĐẦY ĐỦ ROUTES VÀO ĐÂY ĐỂ SERVER BIẾT ĐƯỜNG ĐI
+            daemon = HttpAdapter(ip, port, None, addr, routes)
+            await daemon.handle_client_coroutine(reader, writer)
+        except Exception as e:
+            print(f"[Backend] Lỗi xử lý luồng Coroutine: {e}")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    # Khởi động máy chủ với hàm bọc vừa tạo
+    async_server_instance = await asyncio.start_server(client_handler, ip, port)
     async with async_server_instance:
         await async_server_instance.serve_forever()
-    return
 
 
 def run_backend(ip, port, routes):
@@ -150,30 +144,31 @@ def run_backend(ip, port, routes):
 
         # Nếu dùng Callback, đăng ký máy chủ vào Tổng đài sự kiện (Selector)
         if mode_async == "callback":
+            server.setblocking(False) # PHẢI cởi trói cho server NGAY TỪ ĐẦU
             sel.register(server, selectors.EVENT_READ, (handle_client_callback, ip, port, routes))
-
+            
         # VÒNG LẶP VÔ TẬN: Liên tục hứng các yêu cầu kết nối bay tới
         while True:
-            # Lệnh chặn (Block): Đứng yên cho đến khi có khách gõ cửa
-            conn, addr = server.accept()
+            
 
             # --- ĐÃ GIẢI QUYẾT TODO: Triển khai kiến trúc Non-blocking ---
             if mode_async == "callback":
-               # Cởi trói cho socket (Non-blocking) để tránh kẹt mạng
-               server.setblocking(False) 
-
                # Quét bộ chọn (Selector) xem có sự kiện mạng nào mới không
                events = sel.select(timeout=None)
                for key, mask in events:
+                   server_socket = key.fileobj
+                   conn, addr = server_socket.accept()
                    callback, ip, port, routes = key.data
                    # Gọi hàm callback tương ứng
-                   callback(key.fileobj, ip, port, conn, addr, routes)
+                   callback(server_socket, ip, port, conn, addr, routes)
 
             else:
-               # Mô hình Threading (Mặc định): Cấp 1 luồng riêng để phục vụ
-               # Giống như thuê riêng 1 phục vụ cho 1 bàn khách, máy chủ rảnh tay đi đón khách mới
-               client_thread = threading.Thread(target=handle_client, args=(ip, port, conn, addr, routes))
-               client_thread.start()
+                # Lệnh chặn (Block): Đứng yên cho đến khi có khách gõ cửa
+                conn, addr = server.accept()
+                # Mô hình Threading (Mặc định): Cấp 1 luồng riêng để phục vụ
+                # Giống như thuê riêng 1 phục vụ cho 1 bàn khách, máy chủ rảnh tay đi đón khách mới
+                client_thread = threading.Thread(target=handle_client, args=(ip, port, conn, addr, routes))
+                client_thread.start()
 
     except socket.error as e:
       print("[Backend] LỖI MẠNG LÕI: {}".format(e))
