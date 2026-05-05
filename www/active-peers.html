@@ -1,40 +1,134 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Active Peers - BKSysNet</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/js/active-peers.js" defer></script>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Active Peers - BKSysNet</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/js/active-peers.js" defer></script>
+  </head>
+  <body>
     <!-- Badge hiển thị Tên tài khoản đang đăng nhập -->
-    <div style="position: absolute; top: 1.5rem; left: 1.5rem; background: rgba(255, 255, 255, 0.9); padding: 0.5rem 1rem; border-radius: 99px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); font-weight: 600; font-size: 0.9rem; color: var(--text-main); border: 1px solid var(--card-border); backdrop-filter: blur(5px); z-index: 99;">
-      👤 Web User: <span id="currentOwnerName" style="color: var(--primary-color)">Khách</span>
+    <div
+      style="
+        position: absolute;
+        top: 1.5rem;
+        left: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.5rem 1rem;
+        border-radius: 99px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-main);
+        border: 1px solid var(--card-border);
+        backdrop-filter: blur(5px);
+        z-index: 99;
+      "
+    >
+      👤 Web User:
+      <span id="currentOwnerName" style="color: var(--primary-color)"
+        >Khách</span
+      >
+    </div>
+    <!-- ========================================== -->
+    <!-- BẮT ĐẦU: KHỐI NÚT ĐĂNG XUẤT VÀ SCRIPT XỬ LÝ -->
+    <!-- ========================================== -->
+    <div style="position: absolute; top: 1.5rem; right: 1.5rem; z-index: 99">
+      <button
+        id="btn-logout"
+        style="
+          background-color: #ef4444;
+          color: white;
+          padding: 0.5rem 1rem;
+          border: none;
+          border-radius: 99px;
+          cursor: pointer;
+          font-weight: 600;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s;
+        "
+      >
+        🚪 Đăng xuất
+      </button>
     </div>
 
-<div class="container wide">
-  <h2>Available Network Peers</h2>
-  <p style="color: var(--text-muted);">List of peers registered in the tracker.</p>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const logoutBtn = document.getElementById("btn-logout");
 
-  <table id="peerTable">
-    <tr>
-      <th>Username</th>
-      <th>IP Address</th>
-      <th>Port</th>
-      <th>Network Action</th>
-    </tr>
-  </table>
-  
-  <div class="actions">
-    <button class="btn btn-secondary" onclick="window.location.href='/view-my-channels'">View My Channels</button>
-  </div>
-</div>
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", function () {
+            if (!confirm("Bạn có chắc chắn muốn rời khỏi mạng lưới P2P?")) {
+              return;
+            }
 
-<script>
-  const _match = document.cookie.match(/username=([^;]+)/);
-  const ownerNameElem = document.getElementById('currentOwnerName');
-  if (ownerNameElem) ownerNameElem.innerText = _match ? _match[1] : "Unknown";
-</script>
-</body>
+            logoutBtn.innerText = "⏳ Đang thoát...";
+            logoutBtn.disabled = true;
+
+            // 1. Báo cáo cho Tracker (9000) trước!
+            // Phải có credentials: 'include' để mang theo Cookie tên MinhKhang báo cho máy chủ
+            fetch("http://127.0.0.1:9000/logout", {
+              method: "POST",
+              mode: "no-cors",
+              credentials: "include",
+            })
+              .then(() => {
+                // 2. Tracker gạch tên xong rồi, giờ trình duyệt mới tự sát Cookie
+                document.cookie =
+                  "auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie =
+                  "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+                // 3. Đá văng về cổng của Lễ Tân Proxy (8888)
+                window.location.href = "http://127.0.0.1:8888/login";
+              })
+              .catch(() => {
+                // Lỗi thì cũng hủy Cookie cho an toàn
+                document.cookie =
+                  "auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie =
+                  "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                window.location.href = "http://127.0.0.1:8888/login";
+              });
+          });
+        }
+      });
+    </script>
+    <!-- ========================================== -->
+    <!-- KẾT THÚC: KHỐI NÚT ĐĂNG XUẤT               -->
+    <!-- ========================================== -->
+
+    <div class="container wide">
+      <h2>Available Network Peers</h2>
+      <p style="color: var(--text-muted)">
+        List of peers registered in the tracker.
+      </p>
+
+      <table id="peerTable">
+        <tr>
+          <th>Username</th>
+          <th>IP Address</th>
+          <th>Port</th>
+          <th>Network Action</th>
+        </tr>
+      </table>
+
+      <div class="actions">
+        <button
+          class="btn btn-secondary"
+          onclick="window.location.href = '/view-my-channels'"
+        >
+          View My Channels
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const _match = document.cookie.match(/username=([^;]+)/);
+      const ownerNameElem = document.getElementById("currentOwnerName");
+      if (ownerNameElem)
+        ownerNameElem.innerText = _match ? _match[1] : "Unknown";
+    </script>
+  </body>
 </html>

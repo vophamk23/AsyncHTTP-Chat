@@ -224,7 +224,11 @@ def logout(req):
             del peer_list[peer_id]
             print(f"[ChatServer] Peer đã rời mạng: {peer_id}")
         
-        return Response().build_success({"status": "success"})
+        resp = Response()
+        resp.cookies["auth"] = "false; Path=/; Max-Age=0"
+        resp.cookies["username"] = "deleted; Path=/; Max-Age=0"
+        
+        return resp.build_success({"status": "success"})
     except Exception as e:
         return Response().build_internal_error({"status": "error", "message": str(e)})
 

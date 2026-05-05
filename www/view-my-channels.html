@@ -1,69 +1,176 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Channels - BKSysNet</title>
-    <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
     <!-- Badge hiển thị Tên tài khoản đang đăng nhập -->
-    <div style="position: absolute; top: 1.5rem; left: 1.5rem; background: rgba(255, 255, 255, 0.9); padding: 0.5rem 1rem; border-radius: 99px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); font-weight: 600; font-size: 0.9rem; color: var(--text-main); border: 1px solid var(--card-border); backdrop-filter: blur(5px); z-index: 99;">
-      👤 Web User: <span id="currentOwnerName" style="color: var(--primary-color)">Khách</span>
+    <div
+      style="
+        position: absolute;
+        top: 1.5rem;
+        left: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.5rem 1rem;
+        border-radius: 99px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-main);
+        border: 1px solid var(--card-border);
+        backdrop-filter: blur(5px);
+        z-index: 99;
+      "
+    >
+      👤 Web User:
+      <span id="currentOwnerName" style="color: var(--primary-color)"
+        >Khách</span
+      >
+    </div>
+    <!-- ========================================== -->
+    <!-- BẮT ĐẦU: KHỐI NÚT ĐĂNG XUẤT VÀ SCRIPT XỬ LÝ -->
+    <!-- ========================================== -->
+    <div style="position: absolute; top: 1.5rem; right: 1.5rem; z-index: 99">
+      <button
+        id="btn-logout"
+        style="
+          background-color: #ef4444;
+          color: white;
+          padding: 0.5rem 1rem;
+          border: none;
+          border-radius: 99px;
+          cursor: pointer;
+          font-weight: 600;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s;
+        "
+      >
+        🚪 Đăng xuất
+      </button>
     </div>
 
-<div class="container wide">
-    <h2>My Connected Channels</h2>
-    <p style="color: var(--text-muted);">Manage your active peer-to-peer connections.</p>
-    
-    <table id="channelsTable">
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const logoutBtn = document.getElementById("btn-logout");
+
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", function () {
+            if (!confirm("Bạn có chắc chắn muốn rời khỏi mạng lưới P2P?")) {
+              return;
+            }
+
+            logoutBtn.innerText = "⏳ Đang thoát...";
+            logoutBtn.disabled = true;
+
+            // 1. Báo cáo cho Tracker (9000) trước!
+            // Phải có credentials: 'include' để mang theo Cookie tên MinhKhang báo cho máy chủ
+            fetch("http://127.0.0.1:9000/logout", {
+              method: "POST",
+              mode: "no-cors",
+              credentials: "include",
+            })
+              .then(() => {
+                // 2. Tracker gạch tên xong rồi, giờ trình duyệt mới tự sát Cookie
+                document.cookie =
+                  "auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie =
+                  "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+                // 3. Đá văng về cổng của Lễ Tân Proxy (8888)
+                window.location.href = "http://127.0.0.1:8888/login";
+              })
+              .catch(() => {
+                // Lỗi thì cũng hủy Cookie cho an toàn
+                document.cookie =
+                  "auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie =
+                  "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                window.location.href = "http://127.0.0.1:8888/login";
+              });
+          });
+        }
+      });
+    </script>
+    <!-- ========================================== -->
+    <!-- KẾT THÚC: KHỐI NÚT ĐĂNG XUẤT               -->
+    <!-- ========================================== -->
+
+    <div class="container wide">
+      <h2>My Connected Channels</h2>
+      <p style="color: var(--text-muted)">
+        Manage your active peer-to-peer connections.
+      </p>
+
+      <table id="channelsTable">
         <tr>
-            <th>Username</th>
-            <th>Network IP</th>
-            <th>Port Details</th>
-            <th>Communication</th>
+          <th>Username</th>
+          <th>Network IP</th>
+          <th>Port Details</th>
+          <th>Communication</th>
         </tr>
-    </table>
+      </table>
 
-    <div class="actions">
-        <button id="activeBtn" class="btn btn-secondary" onclick="goActivePeers()">Browse Active Peers</button>
+      <div class="actions">
+        <button
+          id="activeBtn"
+          class="btn btn-secondary"
+          onclick="goActivePeers()"
+        >
+          Browse Active Peers
+        </button>
         <button id="broadcast-btn" class="btn">Broadcast to All</button>
+      </div>
     </div>
-</div>
 
-<!-- Popup modal broadcast -->
-<div id="broadcast-modal" class="modal-overlay">
-    <div class="modal-content">
-        <h3 style="margin-bottom: 1rem;">Broadcast Message</h3>
-        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">Gửi tin nhắn này đồng thời tới toàn bộ các Peer đã kết nối.</p>
-        <textarea id="broadcast-input" placeholder="Enter your global message..."></textarea>
+    <!-- Popup modal broadcast -->
+    <div id="broadcast-modal" class="modal-overlay">
+      <div class="modal-content">
+        <h3 style="margin-bottom: 1rem">Broadcast Message</h3>
+        <p
+          style="
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+          "
+        >
+          Gửi tin nhắn này đồng thời tới toàn bộ các Peer đã kết nối.
+        </p>
+        <textarea
+          id="broadcast-input"
+          placeholder="Enter your global message..."
+        ></textarea>
         <div class="modal-actions">
-            <button id="close-broadcast-btn" class="btn btn-secondary">Cancel</button>
-            <button id="send-broadcast-btn" class="btn">Broadcast Now</button>
+          <button id="close-broadcast-btn" class="btn btn-secondary">
+            Cancel
+          </button>
+          <button id="send-broadcast-btn" class="btn">Broadcast Now</button>
         </div>
+      </div>
     </div>
-</div>
 
-<script>
-// --- Render danh sách channel ---
-async function getConnectedPeers() {
-    try {
-        const res = await fetch("/get-connected-peer");
-        const data = await res.json(); // parse JSON → trả về object/dict
-        console.log(data.peer_list);  // đây là dict bạn cần lấy
-        return data.peer_list;
-    } catch (err) {
-        console.error("Error fetching peers:", err);
-        return {};
-    }
-}
-async function renderChannels() {
-    try{
-        const savedPeers = await getConnectedPeers();
-        const table = document.getElementById("channelsTable");
+    <script>
+      // --- Render danh sách channel ---
+      async function getConnectedPeers() {
+        try {
+          const res = await fetch("/get-connected-peer");
+          const data = await res.json(); // parse JSON → trả về object/dict
+          console.log(data.peer_list); // đây là dict bạn cần lấy
+          return data.peer_list;
+        } catch (err) {
+          console.error("Error fetching peers:", err);
+          return {};
+        }
+      }
+      async function renderChannels() {
+        try {
+          const savedPeers = await getConnectedPeers();
+          const table = document.getElementById("channelsTable");
 
-        // Clear table, giữ header
-        table.innerHTML = `
+          // Clear table, giữ header
+          table.innerHTML = `
             <tr>
                 <th>Username</th>
                 <th>IP</th>
@@ -72,12 +179,13 @@ async function renderChannels() {
             </tr>
         `;
 
-        if (Object.keys(savedPeers).length === 0) {
-            table.innerHTML += "<tr><td colspan='4'>No connected channels yet!</td></tr>";
+          if (Object.keys(savedPeers).length === 0) {
+            table.innerHTML +=
+              "<tr><td colspan='4'>No connected channels yet!</td></tr>";
             return;
-        }
+          }
 
-        Object.keys(savedPeers).forEach(peer => {
+          Object.keys(savedPeers).forEach((peer) => {
             console.log(peer);
             const row = table.insertRow();
             row.insertCell().innerText = peer;
@@ -87,95 +195,99 @@ async function renderChannels() {
             const chatBtn = document.createElement("button");
             chatBtn.innerText = "Open Chat";
             chatBtn.onclick = () => {
-                window.location.href = `/chat?peer=${peer}&ip=${savedPeers[peer][0]}&port=${savedPeers[peer][1]}`;
+              window.location.href = `/chat?peer=${peer}&ip=${savedPeers[peer][0]}&port=${savedPeers[peer][1]}`;
             };
             row.insertCell().appendChild(chatBtn);
-        });
-    } catch (err) {
-        console.error("Error fetching peers:", err);
-        return {};
-    }
-}
-
-// --- Chuyển tới trang active peers ---
-function goActivePeers() {
-    window.location.href = "/active-peers";
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('currentOwnerName').innerText = getUsername();
-    renderChannels();
-});
-
-// --- Popup broadcast ---
-const broadcastBtn = document.getElementById("broadcast-btn");
-const broadcastModal = document.getElementById("broadcast-modal");
-const closeBroadcastBtn = document.getElementById("close-broadcast-btn");
-const sendBroadcastBtn = document.getElementById("send-broadcast-btn");
-const broadcastInput = document.getElementById("broadcast-input");
-
-broadcastBtn.onclick = () => broadcastModal.style.display = "flex";
-closeBroadcastBtn.onclick = () => broadcastModal.style.display = "none";
-
-// --- Lấy username từ cookie ---
-function getUsername() {
-    const match = document.cookie.match(/username=([^;]+)/);
-    return match ? match[1] : "Unknown";
-}
-
-// --- Lưu message vào server local ---
-async function saveMessage(receiver,text, time_stamp){
-            if (!receiver || !text || !time_stamp) {
-                console.log("Missing info.")
-                return;
-            }
-            try {
-                await fetch(`/send-message`, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({"receiver": receiver, "message": text, "time_stamp": time_stamp})
-                });
-                // appendMessage(username, text);
-            } catch (err) {
-                appendMessage("System", "Failed to send message to peer.");
-            }
-        }
-
-// --- Gửi broadcast tới tất cả peer ---
-sendBroadcastBtn.onclick = async () => {
-    const text = broadcastInput.value.trim();
-    if (!text) return;
-
-    const savedPeers = await getConnectedPeers();
-    const username = getUsername();
-    const now = new Date().toISOString();
-
-    // Lưu broadcast vào server local cho chính mình
-   
-
-    // Gửi tới tất cả peer
-    Object.keys(savedPeers).forEach(async peer => {
-        peer_ip = savedPeers[peer][0];
-        peer_port = savedPeers[peer][1];
-        try {
-            await fetch(`http://${peer_ip}:${peer_port}/receive-message`, {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({"sender": username, "message": text, "time_stamp": now})
-            });
-            
+          });
         } catch (err) {
-            console.warn(`Failed to send to ${peer}:`, err);
+          console.error("Error fetching peers:", err);
+          return {};
         }
-        saveMessage(peer, text, now);
-    });
+      }
 
-    alert("Broadcast sent!");
-    broadcastInput.value = "";
-    broadcastModal.style.display = "none";
-};
-</script>
+      // --- Chuyển tới trang active peers ---
+      function goActivePeers() {
+        window.location.href = "/active-peers";
+      }
 
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("currentOwnerName").innerText = getUsername();
+        renderChannels();
+      });
 
-</body>
+      // --- Popup broadcast ---
+      const broadcastBtn = document.getElementById("broadcast-btn");
+      const broadcastModal = document.getElementById("broadcast-modal");
+      const closeBroadcastBtn = document.getElementById("close-broadcast-btn");
+      const sendBroadcastBtn = document.getElementById("send-broadcast-btn");
+      const broadcastInput = document.getElementById("broadcast-input");
+
+      broadcastBtn.onclick = () => (broadcastModal.style.display = "flex");
+      closeBroadcastBtn.onclick = () => (broadcastModal.style.display = "none");
+
+      // --- Lấy username từ cookie ---
+      function getUsername() {
+        const match = document.cookie.match(/username=([^;]+)/);
+        return match ? match[1] : "Unknown";
+      }
+
+      // --- Lưu message vào server local ---
+      async function saveMessage(receiver, text, time_stamp) {
+        if (!receiver || !text || !time_stamp) {
+          console.log("Missing info.");
+          return;
+        }
+        try {
+          await fetch(`/send-message`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              receiver: receiver,
+              message: text,
+              time_stamp: time_stamp,
+            }),
+          });
+          // appendMessage(username, text);
+        } catch (err) {
+          appendMessage("System", "Failed to send message to peer.");
+        }
+      }
+
+      // --- Gửi broadcast tới tất cả peer ---
+      sendBroadcastBtn.onclick = async () => {
+        const text = broadcastInput.value.trim();
+        if (!text) return;
+
+        const savedPeers = await getConnectedPeers();
+        const username = getUsername();
+        const now = new Date().toISOString();
+
+        // Lưu broadcast vào server local cho chính mình
+
+        // Gửi tới tất cả peer
+        Object.keys(savedPeers).forEach(async (peer) => {
+          peer_ip = savedPeers[peer][0];
+          peer_port = savedPeers[peer][1];
+          try {
+            await fetch(`http://${peer_ip}:${peer_port}/receive-message`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sender: username,
+                message: text,
+                time_stamp: now,
+              }),
+            });
+          } catch (err) {
+            console.warn(`Failed to send to ${peer}:`, err);
+          }
+          saveMessage(peer, text, now);
+        });
+
+        alert("Broadcast sent!");
+        broadcastInput.value = "";
+        broadcastModal.style.display = "none";
+      };
+    </script>
+  </body>
 </html>
