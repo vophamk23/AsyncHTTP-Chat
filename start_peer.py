@@ -418,8 +418,18 @@ def send_message(req):
     # 3. Kích hoạt luồng gửi mạng bất đồng bộ (Không đợi gửi xong mới báo thành công)
     if ip and port:
         try:
-            # Dùng asyncio.run để chạy coroutine
-            asyncio.run(send_to_peer_async(ip, port, payload))
+            # Kiểm tra xem có event loop nào đang chạy không (để tránh lỗi ở chế độ coroutine)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Nếu đang ở trong Event Loop (chế độ coroutine), ta tạo task để chạy ngầm
+                loop.create_task(send_to_peer_async(ip, port, payload))
+            else:
+                # Nếu không có loop (chế độ threading), ta dùng asyncio.run như cũ
+                asyncio.run(send_to_peer_async(ip, port, payload))
         except Exception as e:
             print(f"[P2P Launcher Error] Khởi chạy Asyncio thất bại: {e}")
     else:

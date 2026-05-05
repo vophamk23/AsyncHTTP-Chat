@@ -4,7 +4,7 @@ REM Khong can WSL - Mo 7 cua so Windows CMD truc tiep de cap phat sever
 
 ECHO Dang mo 1 Proxy + 1 Tracker + 5 Web Server...
 
-:: Proxy (Dong vai tro canh sat giao thong nam o port 8888 - tuy chon neu ho tro Web)
+:: Proxy (Dong vai tro canh sat giao thong nam o port 8888 - tuychon neu ho tro Web)
 start "Proxy Load Balancer" cmd /k "title Proxy-8888 && echo [Proxy Server] Port 8888 && python start_proxy.py"
 
 :: Tracker Server trung tam cho WEB (Thuong chay tren port 9000 do Web fix cung)
