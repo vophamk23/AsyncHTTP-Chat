@@ -183,6 +183,17 @@ def submit_info(req):
             peer_port = data.get("port")[0] if data.get("port") else None
 
         if peer_id and peer_ip and peer_port:
+            
+            for existing_id, info in peer_list.items():
+                if info["ip"] == peer_ip and str(info["port"]) == str(peer_port):
+                    if existing_id != peer_id:
+                        # Nếu IP:Port này đã bị người khác chiếm
+                        error_msg = f"Địa chỉ {peer_ip}:{peer_port} đã bị chiếm bởi {existing_id}!"
+                        print(f"[ChatServer] TỪ CHỐI: {peer_id} cố gắng dùng port của {existing_id}")
+                        return Response().build_bad_request(
+                            {"status": "error", "message": error_msg}
+                        )
+                        
             peer_list[peer_id] = {"ip": peer_ip, "port": peer_port}
             print(peer_list)
             print(f"[ChatServer] Peer đã đăng ký: {peer_id} -> {peer_ip}:{peer_port}")
